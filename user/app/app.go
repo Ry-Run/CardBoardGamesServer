@@ -12,6 +12,8 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+	"user/internal/service"
+	"user/pb"
 
 	"google.golang.org/grpc"
 )
@@ -36,6 +38,8 @@ func Run(ctx context.Context) error {
 		if err != nil {
 			logs.Fatal("user grpc server Register etcd err: %v", err)
 		}
+		// 注册 Register api 处理器到 grpc 服务端
+		pb.RegisterUserServiceServer(server, service.NewAccountService(manager))
 		// 阻塞操作
 		err = server.Serve(listen)
 		if err != nil {
