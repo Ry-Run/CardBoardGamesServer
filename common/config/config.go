@@ -53,6 +53,7 @@ type MongoConf struct {
 	Password    string `mapstructure:"password"`
 	MinPoolSize int    `mapstructure:"minPoolSize"`
 	MaxPoolSize int    `mapstructure:"maxPoolSize"`
+	Timeout     int    `mapstructure:"timeout"`
 }
 type RedisConf struct {
 	Addr         string   `mapstructure:"addr"`

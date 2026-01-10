@@ -5,6 +5,7 @@ import (
 	"common/discovery"
 	"common/logs"
 	"context"
+	"core/repo"
 	"fmt"
 	"net"
 	"os"
@@ -33,6 +34,9 @@ func Run(ctx context.Context) error {
 		if err != nil {
 			logs.Fatal("user grpc server Register etcd err: %v", err)
 		}
+		// 初始化数据库连接 redis mongo
+		manager := repo.New()
+
 		// 阻塞操作
 		err = server.Serve(listen)
 		if err != nil {
