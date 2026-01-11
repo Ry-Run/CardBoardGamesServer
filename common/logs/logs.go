@@ -31,7 +31,7 @@ func Fatal(format string, args ...interface{}) {
 	if len(args) == 0 {
 		logger.Fatal(format)
 	} else {
-		logger.Fatalf(format, args)
+		logger.Fatalf(format, args...)
 	}
 }
 
@@ -39,7 +39,7 @@ func Info(format string, args ...interface{}) {
 	if len(args) == 0 {
 		logger.Info(format)
 	} else {
-		logger.Infof(format, args)
+		logger.Infof(format, args...)
 	}
 }
 
@@ -47,7 +47,7 @@ func Warn(format string, args ...interface{}) {
 	if len(args) == 0 {
 		logger.Warn(format)
 	} else {
-		logger.Warnf(format, args)
+		logger.Warnf(format, args...)
 	}
 }
 
@@ -55,7 +55,7 @@ func Debug(format string, args ...interface{}) {
 	if len(args) == 0 {
 		logger.Debug(format)
 	} else {
-		logger.Debugf(format, args)
+		logger.Debugf(format, args...)
 	}
 }
 
@@ -63,6 +63,6 @@ func Error(format string, args ...interface{}) {
 	if len(args) == 0 {
 		logger.Error(format)
 	} else {
-		logger.Errorf(format, args)
+		logger.Errorf(format, args...)
 	}
 }
