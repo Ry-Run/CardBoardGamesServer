@@ -69,7 +69,7 @@ func (r *Register) register() error {
 		return err
 	}
 	// 2.心跳检测
-	if r.keepAliveCh, err = r.keepAlive(ctx); err != nil {
+	if r.keepAliveCh, err = r.keepAlive(); err != nil {
 		return err
 	}
 	// 3.绑定租约
@@ -119,8 +119,10 @@ func (r *Register) bindLease(ctx context.Context, key, value string) error {
 //	@receiver register
 //	@param ctx
 //	@return error
-func (r *Register) keepAlive(ctx context.Context) (<-chan *clientv3.LeaseKeepAliveResponse, error) {
-	keepAliveResp, err := r.etcdClt.KeepAlive(ctx, r.leaseId)
+func (r *Register) keepAlive() (<-chan *clientv3.LeaseKeepAliveResponse, error) {
+	// KeepAlive 是一个长连接，如果 ctx 做了超时，长连接就断掉了
+	// 一直发心跳给 etcd，保持 lease
+	keepAliveResp, err := r.etcdClt.KeepAlive(context.Background(), r.leaseId)
 	if err != nil {
 		logs.Error("keepAlive failed, err: %v", err)
 		return keepAliveResp, err
@@ -141,13 +143,11 @@ func (r *Register) watcher() {
 				logs.Error("close and unregister failed, err: %v", err)
 			}
 			logs.Info("unregister etcd")
-		case resp := <-r.keepAliveCh:
-			// 得到的心跳结果不是 nil，需要重新注册
-			if resp != nil {
-				if err := r.register(); err != nil {
-					logs.Error("keepAliveCh register failed, err: %v", err)
-				}
+			if r.etcdClt != nil {
+				r.etcdClt.Close()
 			}
+		case <-r.keepAliveCh:
+			//logs.Info("keepAlive: %v", resp)
 		case <-ticker.C:
 			if r.keepAliveCh == nil {
 				if err := r.register(); err != nil {
