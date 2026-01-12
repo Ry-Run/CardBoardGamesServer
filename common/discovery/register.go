@@ -109,6 +109,7 @@ func (r *Register) bindLease(ctx context.Context, key, value string) error {
 		logs.Error("bindLease Put failed, err: %v", err)
 		return err
 	}
+	logs.Info("register service success, key: %v", key)
 	return nil
 }
 

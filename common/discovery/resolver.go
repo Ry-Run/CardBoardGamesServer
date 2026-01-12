@@ -83,6 +83,11 @@ func (r *Resolver) sync() error {
 			Attributes: attributes.New("weight", server.Weight),
 		})
 	}
+	if len(r.serverAddrs) == 0 {
+		// 服务器可能还在启动未注册到 etcd，或者其他原因
+		logs.Error("no services founded")
+		return nil
+	}
 	// 更新 grpc 地址
 	err = r.cc.UpdateState(resolver.State{
 		Addresses: r.serverAddrs,

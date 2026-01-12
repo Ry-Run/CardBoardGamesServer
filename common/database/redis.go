@@ -12,6 +12,7 @@ import (
 type RedisManager struct {
 	Clt        *redis.Client        // 单机
 	ClusterClt *redis.ClusterClient // 集群
+	// redis.NewUniversalClient(...) 可以统一单机、集群模式
 }
 
 func NewRedis() *RedisManager {
