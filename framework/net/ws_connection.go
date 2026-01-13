@@ -100,6 +100,11 @@ func (c *WsConnection) Close() {
 	}
 }
 
+func (c *WsConnection) SendMessage(buf []byte) error {
+	c.WriteChan <- buf
+	return nil
+}
+
 // Ping/Pong/Close 是控制帧，gorilla 内部拦截处理所有消息，ReadMessage() 只会读到 Text/Binary 数据帧
 // 控制帧由 ReadMessage() -> NextReader() -> advanceFrame(注释 7.) 里面处理了，而数据帧则正常返回
 func (c *WsConnection) PongHandler(data string) error {

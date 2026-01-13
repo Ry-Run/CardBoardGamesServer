@@ -14,6 +14,9 @@ package net
 
 import (
 	"common/logs"
+	"encoding/json"
+	"errors"
+	"framework/protocol"
 	"net/http"
 	"sync"
 
@@ -41,11 +44,16 @@ type WsManager struct {
 	CheckOriginHandler CheckOriginHandler
 	clts               map[string]Connection
 	cltReadChan        chan *MsgPack // 共用一个 读通道
+	handlers           map[protocol.PackageType]EventHandler
 }
+
+type EventHandler func(packet *protocol.Packet, conn Connection) error
 
 func (m *WsManager) Run(addr string) {
 	go m.clientReadChanHandler()
 	http.HandleFunc("/", m.serveWS)
+	// 设置不同的消息处理器
+	m.setupEventHandler()
 	err := http.ListenAndServe(addr, nil)
 	logs.Fatal("connector listen serve err:%v", err)
 }
@@ -95,6 +103,16 @@ func (m *WsManager) clientReadChanHandler() {
 // 解析 pomelo 协议
 func (m *WsManager) decodeClientPack(body *MsgPack) {
 	logs.Info("receive msg:%v", string(body.body))
+	// 解析 pomelo Packet 包
+	packet, err := protocol.Decode(body.body)
+	if err != nil {
+		logs.Error("decode Packet err: %v", err)
+		return
+	}
+	if err := m.routeEvent(packet, body.Cid); err != nil {
+		logs.Error("routeEvent err: %v", err)
+		return
+	}
 }
 
 func (m *WsManager) Close() {
@@ -106,9 +124,76 @@ func (m *WsManager) Close() {
 	}
 }
 
+func (m *WsManager) routeEvent(packet *protocol.Packet, cid string) error {
+	conn, ok := m.clts[cid]
+	if !ok {
+		return errors.New("connection has broken")
+	}
+	handler, ok := m.handlers[packet.Type]
+	if !ok {
+		return errors.New("packet type not found")
+	}
+	return handler(packet, conn)
+}
+
+func (m *WsManager) setupEventHandler() {
+	m.handlers[protocol.Handshake] = m.HandshakeHandler
+	m.handlers[protocol.HandshakeAck] = m.HandshakeAckHandler
+	m.handlers[protocol.Heartbeat] = m.HeartbeatHandler
+	m.handlers[protocol.Data] = m.MessageHandler
+	m.handlers[protocol.Kick] = m.KickHandler
+}
+
+func (m *WsManager) HandshakeHandler(packet *protocol.Packet, conn Connection) error {
+	logs.Info("receive handshake type: %v", packet.Type)
+	resp := protocol.HandshakeResponse{
+		Code: 200,
+		Sys: protocol.Sys{
+			Heartbeat: 3,
+		},
+	}
+	data, _ := json.Marshal(resp)
+	buf, err := protocol.Encode(packet.Type, data)
+	if err != nil {
+		logs.Error("encode packet err: %v", err)
+		return err
+	}
+	return conn.SendMessage(buf)
+}
+
+// 握手确认，客户端响应收到 Handshake，服务端一般不用处理
+func (m *WsManager) HandshakeAckHandler(packet *protocol.Packet, conn Connection) error {
+	logs.Info("receive handshake ack")
+	return nil
+}
+
+func (m *WsManager) HeartbeatHandler(packet *protocol.Packet, conn Connection) error {
+	logs.Info("receive heartbeat type: %v", packet.Type)
+	var resp []byte
+	data, _ := json.Marshal(resp)
+	buf, err := protocol.Encode(packet.Type, data)
+	if err != nil {
+		logs.Error("encode packet err: %v", err)
+		return err
+	}
+	return conn.SendMessage(buf)
+}
+
+func (m *WsManager) MessageHandler(packet *protocol.Packet, conn Connection) error {
+	logs.Info("receive message: %v", packet.Body)
+	return nil
+}
+
+// 服务端会主动发起，所以服务端一般不用处理
+func (m *WsManager) KickHandler(packet *protocol.Packet, conn Connection) error {
+	logs.Info("receive kick message")
+	return nil
+}
+
 func NewWsManager() *WsManager {
 	return &WsManager{
 		cltReadChan: make(chan *MsgPack, 1024),
 		clts:        make(map[string]Connection),
+		handlers:    make(map[protocol.PackageType]EventHandler),
 	}
 }
