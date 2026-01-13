@@ -85,7 +85,7 @@ func (r *Resolver) sync() error {
 	}
 	if len(r.serverAddrs) == 0 {
 		// 服务器可能还在启动未注册到 etcd，或者其他原因
-		logs.Error("no services founded")
+		logs.Error("no services found")
 		return nil
 	}
 	// 更新 grpc 地址

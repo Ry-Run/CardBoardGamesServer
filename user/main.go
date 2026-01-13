@@ -11,7 +11,7 @@ import (
 	"user/app"
 )
 
-var configFile = flag.String("config", "application.yaml", "config file")
+var configFile = flag.String("config", "application.yml", "config file")
 
 func main() {
 	// 1.加载配置

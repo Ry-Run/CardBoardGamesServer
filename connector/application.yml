@@ -1,0 +1,23 @@
+appName: connector
+metricPort: 5856
+log:
+  level: DEBUG
+#grpc:
+#  addr: 127.0.0.1:11500
+etcd:
+  addrs:
+    - 127.0.0.1:2379
+  rwTimeout: 3
+  dialTimeout: 3
+domain:
+  user:
+    name: user/v1
+    loadBalance: true
+jwt:
+  secret: 123456
+  exp: 7
+services:
+  connector:
+    id: connector-1
+    clientHost: 127.0.0.1
+    clientPort: 12000

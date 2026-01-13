@@ -5,7 +5,7 @@ import (
 	"common/logs"
 	"context"
 	"fmt"
-	"gate/router"
+	"framework/connector"
 	"os"
 	"os/signal"
 	"syscall"
@@ -13,20 +13,20 @@ import (
 )
 
 // Run 启动程序 启动 grpc 服务、启动 http 服务、启动日志、启用数据库
-func Run(ctx context.Context) error {
+func Run(ctx context.Context, serverId string) error {
 	// 初始化日志
 	logs.InitLog(config.Conf.AppName)
+	exit := func() {}
 	go func() {
-		// gin 启动 注册路由
-		registerRouter := router.RegisterRouter()
-		// 绑定 http 服务器端口
-		if err := registerRouter.Run(fmt.Sprintf(":%d", config.Conf.HttpPort)); err != nil {
-			logs.Fatal("gate run err: %v", err)
-		}
+		// 创建/启动两个组件：1.websocketmanager 2.natsClient
+		c := connector.Default()
+		exit = c.Close
+		c.Run(serverId)
 	}()
 	// 优雅启停 遇到：中断 退出 中止 挂断信号 先执行清理操作，再退出
 	stop := func() {
 		// 其他操作
+		exit()
 		// 有些操作可能在协程里进行，这里等待 3 秒，尽量让这些操作完成
 		time.Sleep(3 * time.Second)
 		fmt.Println("stop app finish")
@@ -43,12 +43,12 @@ func Run(ctx context.Context) error {
 			case syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGINT:
 				// 中止/退出/中断 信号
 				stop()
-				logs.Info("gate app quit")
+				logs.Info("connector app quit")
 				return nil
 			case syscall.SIGHUP:
 				// 挂断信号 linux 用户注销，该用户的进程需要销毁
 				stop()
-				logs.Info("hang up, gate app quit")
+				logs.Info("hang up, connector app quit")
 				return nil
 			default:
 				return nil
