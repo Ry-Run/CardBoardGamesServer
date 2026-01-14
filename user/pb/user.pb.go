@@ -168,8 +168,8 @@ var file_user_proto_goTypes = []any{
 	(*RegisterResponse)(nil), // 1: RegisterResponse
 }
 var file_user_proto_depIdxs = []int32{
-	0, // 0: UserService.Register:input_type -> RegisterParams
-	1, // 1: UserService.Register:output_type -> RegisterResponse
+	0, // 0: userService.Register:input_type -> RegisterParams
+	1, // 1: userService.Register:output_type -> RegisterResponse
 	1, // [1:2] is the sub-list for method output_type
 	0, // [0:1] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name

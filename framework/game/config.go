@@ -156,3 +156,19 @@ func (c *Config) GetConnectorByServerType(serverType string) *ConnectorConfig {
 	}
 	return nil
 }
+
+func (c *Config) GetFrontGameConfig() map[string]any {
+	res := make(map[string]any)
+	for k, v := range c.GameConfig {
+		backend := false
+		b, ok := v["backend"]
+		if ok {
+			backend = b.(bool)
+		}
+		value, ok := v["value"]
+		if ok && !backend {
+			res[k] = value
+		}
+	}
+	return res
+}

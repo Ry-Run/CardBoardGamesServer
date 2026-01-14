@@ -10,7 +10,7 @@ type AccountDao struct {
 	repo *repo.Manager
 }
 
-func (a AccountDao) Save(ctx context.Context, e *entity.Account) error {
+func (a AccountDao) SaveAccount(ctx context.Context, e *entity.Account) error {
 	table := a.repo.Mongo.Db.Collection("account")
 	_, err := table.InsertOne(ctx, e)
 	if err != nil {

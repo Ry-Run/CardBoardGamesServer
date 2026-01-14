@@ -20,3 +20,17 @@ func Success(ctx *gin.Context, data any) {
 func Fail(ctx *gin.Context, err *msError.Error) {
 	ctx.JSON(http.StatusOK, Result{Code: err.Code, Msg: err.Error()})
 }
+
+func SuccessNoCtx(data any) Result {
+	return Result{
+		Code: biz.OK,
+		Msg:  data,
+	}
+}
+
+func FailNoCtx(err *msError.Error) Result {
+	return Result{
+		Code: err.Code,
+		Msg:  err.Error(),
+	}
+}

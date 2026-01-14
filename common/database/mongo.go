@@ -6,9 +6,9 @@ import (
 	"context"
 	"time"
 
-	"go.mongodb.org/mongo-driver/v2/mongo"
-	"go.mongodb.org/mongo-driver/v2/mongo/options"
-	"go.mongodb.org/mongo-driver/v2/mongo/readpref"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
 type MongoManager struct {
@@ -26,7 +26,7 @@ func NewMongo() *MongoManager {
 	})
 	cltOptions.SetMinPoolSize(uint64(config.Conf.Database.MongoConf.MinPoolSize))
 	cltOptions.SetMaxPoolSize(uint64(config.Conf.Database.MongoConf.MaxPoolSize))
-	client, err := mongo.Connect(cltOptions)
+	client, err := mongo.Connect(ctx, cltOptions)
 	if err != nil {
 		logs.Fatal("mongo connect err:%v", err)
 		return nil

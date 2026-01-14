@@ -5,6 +5,7 @@ import (
 	"common/logs"
 	"connector/route"
 	"context"
+	"core/repo"
 	"fmt"
 	"framework/connector"
 	"os"
@@ -22,8 +23,10 @@ func Run(ctx context.Context, serverId string) error {
 		// 创建/启动两个组件：1.websocketmanager 2.natsClient
 		c := connector.Default()
 		exit = c.Close
+		// 初始化数据库
+		manager := repo.New()
 		// 注册路由
-		c.RegisterHandler(route.Register())
+		c.RegisterHandler(route.Register(manager))
 		c.Run(serverId)
 	}()
 	// 优雅启停 遇到：中断 退出 中止 挂断信号 先执行清理操作，再退出

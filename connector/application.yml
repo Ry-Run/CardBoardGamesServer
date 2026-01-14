@@ -21,3 +21,17 @@ services:
     id: connector-1
     clientHost: 127.0.0.1
     clientPort: 12000
+db:
+  mongo:
+    url: mongodb://127.0.0.1:27018
+    userName: root
+    password: root123456
+    minPoolSize: 10
+    maxPoolSize: 100
+    db: mschess
+    timeout: 10
+  redis:
+    addr: 127.0.0.1:6379
+    poolSize: 10
+    minIdleConns: 1
+    password:

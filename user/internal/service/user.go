@@ -61,7 +61,7 @@ func (a *AccountService) wxRegister(req *pb.RegisterParams) (entity.Account, *ms
 		return account, biz.SqlError
 	}
 	account.Uid = uid
-	err = a.accountDao.Save(context.TODO(), &account)
+	err = a.accountDao.SaveAccount(context.TODO(), &account)
 	if err != nil {
 		return account, biz.SqlError
 	}
