@@ -16,8 +16,11 @@ import (
 	"common/logs"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"framework/game"
 	"framework/protocol"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -43,11 +46,15 @@ type WsManager struct {
 	ServerId           string
 	CheckOriginHandler CheckOriginHandler
 	clts               map[string]Connection
-	cltReadChan        chan *MsgPack // 共用一个 读通道
-	handlers           map[protocol.PackageType]EventHandler
+	cltReadChan        chan *MsgPack                         // 共用一个 读通道
+	handlers           map[protocol.PackageType]EventHandler // 客户端 Packet 处理器
+	ConnectorHandlers  LogicHandler                          // 本地 connector 处理器
 }
 
 type EventHandler func(packet *protocol.Packet, conn Connection) error
+
+type HandlerFunc func(session *Session, body []byte) (any, error)
+type LogicHandler map[string]HandlerFunc
 
 func (m *WsManager) Run(addr string) {
 	go m.clientReadChanHandler()
@@ -180,7 +187,42 @@ func (m *WsManager) HeartbeatHandler(packet *protocol.Packet, conn Connection) e
 }
 
 func (m *WsManager) MessageHandler(packet *protocol.Packet, conn Connection) error {
-	logs.Info("receive message: %v", packet.Body)
+	logs.Info("receive message: %+v", packet.Body)
+	message := packet.MessageBody()
+	// routeStr 形如：connector.entryHandler.entry
+	routeStr := message.Route
+	routes := strings.Split(routeStr, ".")
+	if len(routes) != 3 {
+		return errors.New("route unsupported")
+	}
+	serverType := routes[0]
+	handlerMethod := fmt.Sprintf("%s.%s", routes[1], routes[2])
+	connectorConfig := game.Conf.GetConnectorByServerType(serverType)
+	if connectorConfig != nil {
+		// 本地 connector 服务器处理
+		handler, ok := m.ConnectorHandlers[handlerMethod]
+		if !ok {
+			return errors.New("connector handler unsupported")
+		}
+		data, err := handler(conn.GetSession(), message.Data)
+		if err != nil {
+			return err
+		}
+		marshal, _ := json.Marshal(data)
+		message.Type = protocol.Response
+		message.Data = marshal
+		body, err := protocol.MessageEncode(message)
+		if err != nil {
+			return err
+		}
+		resp, err := protocol.Encode(packet.Type, body)
+		if err != nil {
+			return err
+		}
+		return conn.SendMessage(resp)
+	} else {
+		// nat handle
+	}
 	return nil
 }
 

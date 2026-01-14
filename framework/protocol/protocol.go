@@ -57,6 +57,7 @@ type Packet struct {
 	Body any
 }
 
+// 解码 Packet，并且如果 packet type 是 Handshake 会解码 body 为 HandshakeBody， 如果是 Data 会解码 body 为 Message
 func Decode(payload []byte) (*Packet, error) {
 	if len(payload) < HeaderLen {
 		return nil, errors.New("data len invalid")
@@ -303,7 +304,7 @@ type HandshakeResponse struct {
 }
 
 type Message struct {
-	Type            MessageType // message type 4中消息类型
+	Type            MessageType // message type 4中消息类型 request response notify push
 	ID              uint        // unique id, zero while notify mode 消息id（request response）
 	Route           string      // route for locating service 消息路由
 	Data            []byte      // payload  消息体的原始数据

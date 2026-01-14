@@ -10,16 +10,20 @@ import (
 type Connector struct {
 	isRunning bool
 	wsManager *net.WsManager
+	handlers  net.LogicHandler
 }
 
 func Default() *Connector {
-	return &Connector{}
+	return &Connector{
+		handlers: make(net.LogicHandler),
+	}
 }
 
 // 启动 websocket 和 nats
 func (c *Connector) Run(serverId string) {
 	if !c.isRunning {
 		c.wsManager = net.NewWsManager()
+		c.wsManager.ConnectorHandlers = c.handlers
 		c.wsManager.ServerId = serverId
 		c.Serve(serverId)
 	}
@@ -42,4 +46,8 @@ func (c *Connector) Serve(serverId string) {
 	addr := fmt.Sprintf("%s:%d", connectorConfig.Host, connectorConfig.ClientPort)
 	c.isRunning = true
 	c.wsManager.Run(addr)
+}
+
+func (c *Connector) RegisterHandler(handlers net.LogicHandler) {
+	c.handlers = handlers
 }

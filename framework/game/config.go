@@ -147,3 +147,12 @@ func (c *Config) GetConnector(serverId string) *ConnectorConfig {
 	}
 	return nil
 }
+
+func (c *Config) GetConnectorByServerType(serverType string) *ConnectorConfig {
+	for _, v := range c.ServersConf.Connector {
+		if v.ServerType == serverType {
+			return v
+		}
+	}
+	return nil
+}
