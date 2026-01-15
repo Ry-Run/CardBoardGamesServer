@@ -146,8 +146,15 @@ func (r *Register) watcher() {
 			if r.etcdClt != nil {
 				r.etcdClt.Close()
 			}
-		case <-r.keepAliveCh:
-			//logs.Info("keepAlive: %v", resp)
+		case res, ok := <-r.keepAliveCh:
+			// etcd 重启/网络中断等导致 keepalive 的 gRPC stream 失败时，clientv3 会 close keepAliveCh；
+			// 从已关闭的 chan *LeaseKeepAliveResponse 接收会得到 nil（或 ok=false），需要重新注册/重建 keepalive。
+			if !ok || res == nil {
+				if err := r.register(); err != nil {
+					logs.Error("ticker register failed, err: %v", err)
+				}
+				logs.Info("续约重新注册成功, res=%v", res)
+			}
 		case <-ticker.C:
 			if r.keepAliveCh == nil {
 				if err := r.register(); err != nil {
