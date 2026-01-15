@@ -11,3 +11,7 @@ func NewSession(client Client, msg *Msg) *Session {
 		msg:    msg,
 	}
 }
+
+func (s *Session) GetUid() string {
+	return s.msg.Uid
+}

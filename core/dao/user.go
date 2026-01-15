@@ -36,6 +36,19 @@ func (d *UserDao) Save(ctx context.Context, user *entity.User) error {
 	return err
 }
 
+func (d *UserDao) UpdateUserAddressByUid(ctx context.Context, user *entity.User) error {
+	table := d.repo.Mongo.Db.Collection("user")
+	_, err := table.UpdateOne(ctx, bson.M{
+		"uid": user.Uid,
+	}, bson.M{
+		"$set": bson.M{
+			"address":  user.Address,
+			"location": user.Location,
+		},
+	})
+	return err
+}
+
 func (a AccountDao) SaveUser(ctx context.Context, e *entity.User) error {
 	table := a.repo.Mongo.Db.Collection("account")
 	_, err := table.InsertOne(ctx, e)
