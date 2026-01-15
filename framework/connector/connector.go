@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"framework/game"
 	"framework/net"
+	"framework/remote"
 )
 
 type Connector struct {
 	isRunning bool
 	wsManager *net.WsManager
 	handlers  net.LogicHandler
+	remoteClt remote.Client
 }
 
 func Default() *Connector {
@@ -25,6 +27,11 @@ func (c *Connector) Run(serverId string) {
 		c.wsManager = net.NewWsManager()
 		c.wsManager.ConnectorHandlers = c.handlers
 		c.wsManager.ServerId = serverId
+		// 启动 nat nats，不会像 kafka 一样存储消息，如果没有推送的地方，消息就直接丢失
+		c.remoteClt = remote.NewNatsClient(serverId, c.wsManager.RemoteReadChan)
+		c.remoteClt.Run()
+		c.wsManager.RemoteClt = c.remoteClt
+		// 启动 websocket
 		c.Serve(serverId)
 	}
 }

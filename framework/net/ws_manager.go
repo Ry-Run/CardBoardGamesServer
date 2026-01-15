@@ -7,7 +7,7 @@
 //
 // 缺点：
 //
-//	1.单个 Manager 消费速度如果跟不上，cltReadChan 会被塞满（目前设置的 1024 buffer），然后连接的 readMsg() 往里写会阻塞，最后影响读网络包，可能导致超时/断线。
+//	1.单个 Manager 消费速度如果跟不上，CltReadChan 会被塞满（目前设置的 1024 buffer），然后连接的 readMsg() 往里写会阻塞，最后影响读网络包，可能导致超时/断线。
 //
 // 解决办法：如果业务处理很重，通常会在 Manager 里再开 worker pool（或者把 decode/handle 拆出去）避免单点瓶颈。
 package net
@@ -19,9 +19,12 @@ import (
 	"fmt"
 	"framework/game"
 	"framework/protocol"
+	"framework/remote"
+	"math/rand"
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -46,9 +49,11 @@ type WsManager struct {
 	ServerId           string
 	CheckOriginHandler CheckOriginHandler
 	clts               map[string]Connection
-	cltReadChan        chan *MsgPack                         // 共用一个 读通道
+	cltReadChan        chan *MsgPack                         // 客户端 WS 入站消息通道：各连接读取到的消息统一投递到这里，由后续逻辑消费
 	handlers           map[protocol.PackageType]EventHandler // 客户端 Packet 处理器
 	ConnectorHandlers  LogicHandler                          // 本地 connector 处理器
+	RemoteReadChan     chan []byte                           // 远端入站消息通道：来自 NATS server/集群的消息写入此处，由本地逻辑读取处理
+	RemoteClt          remote.Client
 }
 
 type EventHandler func(packet *protocol.Packet, conn Connection) error
@@ -57,7 +62,10 @@ type HandlerFunc func(session *Session, body []byte) (any, error)
 type LogicHandler map[string]HandlerFunc
 
 func (m *WsManager) Run(addr string) {
+	// 处理 WS 消息
 	go m.clientReadChanHandler()
+	// 处理 NATS server 消息
+	go m.remoteReadChanHandler()
 	http.HandleFunc("/", m.serveWS)
 	// 设置不同的消息处理器
 	m.setupEventHandler()
@@ -222,6 +230,28 @@ func (m *WsManager) MessageHandler(packet *protocol.Packet, conn Connection) err
 		return conn.SendMessage(resp)
 	} else {
 		// nat handle
+		// 目标服务器 serverId
+		dst, err := m.selectDst(serverType)
+		if err != nil {
+			logs.Error("remote send msg selectDst err: %v", err)
+			return err
+		}
+		session := conn.GetSession()
+		msg := &remote.Msg{
+			Cid:         session.Cid,
+			Uid:         session.Uid,
+			Src:         m.ServerId,
+			Dst:         dst,
+			Router:      handlerMethod,
+			Body:        message,
+			SessionData: session.data,
+		}
+		data, _ := json.Marshal(msg)
+		err = m.RemoteClt.SendMsg(dst, data)
+		if err != nil {
+			logs.Error("remote send msg err: %v", err)
+			return err
+		}
 	}
 	return nil
 }
@@ -232,10 +262,31 @@ func (m *WsManager) KickHandler(packet *protocol.Packet, conn Connection) error 
 	return nil
 }
 
+func (m *WsManager) remoteReadChanHandler() {
+	for {
+		select {
+		case msg := <-m.RemoteReadChan:
+			logs.Info("sub nats msg: %v", string(msg))
+		}
+	}
+}
+
+func (m *WsManager) selectDst(serverType string) (string, error) {
+	serverConfigs, ok := game.Conf.ServersConf.TypeServer[serverType]
+	if !ok {
+		return "", errors.New("no server found")
+	}
+	// 随机选一个服务器，正常来说应该采用负载均衡算法：轮询、权重
+	rand.New(rand.NewSource(time.Now().UnixNano()))
+	index := rand.Intn(len(serverConfigs))
+	return serverConfigs[index].ID, nil
+}
+
 func NewWsManager() *WsManager {
 	return &WsManager{
-		cltReadChan: make(chan *MsgPack, 1024),
-		clts:        make(map[string]Connection),
-		handlers:    make(map[protocol.PackageType]EventHandler),
+		cltReadChan:    make(chan *MsgPack, 1024),
+		clts:           make(map[string]Connection),
+		handlers:       make(map[protocol.PackageType]EventHandler),
+		RemoteReadChan: make(chan []byte, 1024),
 	}
 }
