@@ -1,6 +1,7 @@
 package service
 
 import (
+	"common/biz"
 	"common/logs"
 	"common/utils"
 	"connector/request"
@@ -10,6 +11,7 @@ import (
 	"core/repo"
 	"fmt"
 	"framework/game"
+	"framework/msError"
 	hall "hall/model/request"
 	"time"
 )
@@ -45,6 +47,16 @@ func (s *UserService) FindOrSaveUser(ctx context.Context, uid string, info reque
 		}
 	}
 	return user, err
+}
+
+// 通过 uid 查询 user
+func (s *UserService) FindUserByUid(ctx context.Context, uid string) (*entity.User, *msError.Error) {
+	user, err := s.userDao.FindUserByUid(ctx, uid)
+	if err != nil {
+		logs.Error("[UserService] FindUserByUid err: %v", err)
+		return nil, biz.SqlError
+	}
+	return user, nil
 }
 
 func (s *UserService) UpdateUserAddressByUid(uid string, req hall.UpdateUserAddressReq) error {
