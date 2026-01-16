@@ -14,6 +14,7 @@ package net
 
 import (
 	"common/logs"
+	"common/utils"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -54,6 +55,7 @@ type WsManager struct {
 	ConnectorHandlers  LogicHandler                          // 本地 connector 处理器
 	RemoteReadChan     chan []byte                           // 远端入站消息通道：来自 NATS server/集群的消息写入此处，由本地逻辑读取处理
 	RemoteClt          remote.Client
+	RemotePushChan     chan *remote.Msg // 专门处理 push 到客户端的 Channel
 }
 
 type EventHandler func(packet *protocol.Packet, conn Connection) error
@@ -66,6 +68,8 @@ func (m *WsManager) Run(addr string) {
 	go m.clientReadChanHandler()
 	// 处理 NATS server 消息
 	go m.remoteReadChanHandler()
+	// 专门一个处理 push 的消息，提高吞吐量
+	go m.remotePushChanHandler()
 	http.HandleFunc("/", m.serveWS)
 	// 设置不同的消息处理器
 	m.setupEventHandler()
@@ -265,8 +269,32 @@ func (m *WsManager) KickHandler(packet *protocol.Packet, conn Connection) error 
 func (m *WsManager) remoteReadChanHandler() {
 	for {
 		select {
-		case msg := <-m.RemoteReadChan:
-			logs.Info("sub nats msg: %v", string(msg))
+		case body, ok := <-m.RemoteReadChan:
+			if ok {
+				logs.Info("sub nats msg: %v", string(body))
+				var msg remote.Msg
+				if err := json.Unmarshal(body, &msg); err != nil {
+					logs.Error("nat remote message format err: %v", err)
+					continue
+				}
+				// 0 normal 推送至客户端；1 session 更新本地 session 相关数据，不推送
+				switch msg.Type {
+				case 0:
+					if msg.Body == nil {
+						continue
+					}
+					switch msg.Body.Type {
+					case protocol.Request, protocol.Response:
+						// 给客户端回消息都是 protocol.Response 类型
+						msg.Body.Type = protocol.Response
+						m.Response(&msg)
+					case protocol.Push:
+						m.RemotePushChan <- &msg
+					}
+				case 1:
+
+				}
+			}
 		}
 	}
 }
@@ -282,11 +310,53 @@ func (m *WsManager) selectDst(serverType string) (string, error) {
 	return serverConfigs[index].ID, nil
 }
 
+func (m *WsManager) Response(r *remote.Msg) {
+	conn, ok := m.clts[r.Cid]
+	if !ok {
+		logs.Error("%s client down，uid=%s", r.Cid, r.Uid)
+		return
+	}
+	buf, err := protocol.MessageEncode(r.Body)
+	if err != nil {
+		logs.Error("response MessageEncode err: %v", err)
+		return
+	}
+	res, err := protocol.Encode(protocol.Data, buf)
+	if err != nil {
+		logs.Error("response Encode err: %v", err)
+		return
+	}
+	// 如果是推送的消息，可能会涉及到发送给多个 user
+	if r.Body.Type == protocol.Push {
+		for _, v := range m.clts {
+			if utils.Contains(r.PushUser, v.GetSession().Uid) {
+				v.SendMessage(res)
+			}
+		}
+	} else {
+		conn.SendMessage(res)
+	}
+}
+
+func (m *WsManager) remotePushChanHandler() {
+	for {
+		select {
+		case body, ok := <-m.RemotePushChan:
+			if ok {
+				if body.Body.Type == protocol.Push {
+					m.Response(body)
+				}
+			}
+		}
+	}
+}
+
 func NewWsManager() *WsManager {
 	return &WsManager{
 		cltReadChan:    make(chan *MsgPack, 1024),
 		clts:           make(map[string]Connection),
 		handlers:       make(map[protocol.PackageType]EventHandler),
 		RemoteReadChan: make(chan []byte, 1024),
+		RemotePushChan: make(chan *remote.Msg, 1024),
 	}
 }
