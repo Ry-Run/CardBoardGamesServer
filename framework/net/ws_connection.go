@@ -19,12 +19,13 @@ var (
 )
 
 type WsConnection struct {
-	Cid       string
-	Conn      *websocket.Conn
-	wsManager *WsManager
-	ReadChan  chan *MsgPack
-	WriteChan chan []byte
-	Session   *Session
+	Cid        string
+	Conn       *websocket.Conn
+	wsManager  *WsManager
+	ReadChan   chan *MsgPack
+	WriteChan  chan []byte
+	Session    *Session
+	pingTicker *time.Ticker
 }
 
 func (c *WsConnection) Run() {
@@ -66,8 +67,7 @@ func (c *WsConnection) readMsg() {
 }
 
 func (c *WsConnection) writeMsg() {
-	ticker := time.NewTimer(pingWait)
-	defer ticker.Stop()
+	c.pingTicker = time.NewTicker(pingWait)
 	for {
 		select {
 		case message, ok := <-c.WriteChan:
@@ -80,7 +80,7 @@ func (c *WsConnection) writeMsg() {
 			if err := c.Conn.WriteMessage(websocket.BinaryMessage, message); err != nil {
 				logs.Error("client[%v] write message err: %v", c.Cid, err)
 			}
-		case <-ticker.C:
+		case <-c.pingTicker.C:
 			// SetWriteDeadline：从 now + writeWait 这个截止时间之前，这个 WriteMessage(Ping) 必须完成；
 			// 如果底层网络卡住（对端不收、TCP 缓冲满、网络异常），导致写一直阻塞，超过 deadline 后写就会返回超时错误。
 			if err := c.Conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
@@ -89,6 +89,8 @@ func (c *WsConnection) writeMsg() {
 			// 2.隔 n 秒就发送一个 ping 消息给客户端
 			if err := c.Conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				logs.Error("client[%v] ping err: %v", c.Cid, err)
+				// ping 不通，就认为客户端下线
+				c.Close()
 			}
 			logs.Info("ping...")
 		}
@@ -98,6 +100,9 @@ func (c *WsConnection) writeMsg() {
 func (c *WsConnection) Close() {
 	if c.Conn != nil {
 		_ = c.Conn.Close()
+	}
+	if c.pingTicker != nil {
+		c.pingTicker.Stop()
 	}
 }
 

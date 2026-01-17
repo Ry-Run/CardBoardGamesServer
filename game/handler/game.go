@@ -17,7 +17,7 @@ type GameHandler struct {
 	userService *service.UserService
 }
 
-func (h GameHandler) RoomMessageNotify(session *remote.Session, msg []byte) any {
+func (h *GameHandler) RoomMessageNotify(session *remote.Session, msg []byte) any {
 	if len(session.GetUid()) <= 0 {
 		return common.FailNoCtx(biz.InvalidUsers)
 	}

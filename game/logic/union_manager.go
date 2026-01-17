@@ -1,7 +1,11 @@
 package logic
 
 import (
+	"common/biz"
+	"core/models/entity"
 	"fmt"
+	"framework/msError"
+	"framework/remote"
 	"game/component/room"
 	"math/rand"
 	"sync"
@@ -58,4 +62,14 @@ func (u *UnionManager) GetRoomById(roomId string) *room.Room {
 		}
 	}
 	return nil
+}
+
+func (u *UnionManager) JoinRoom(session *remote.Session, roomId string, user *entity.User) *msError.Error {
+	for _, union := range u.unions {
+		r, ok := union.Rooms[roomId]
+		if ok {
+			return r.JoinRoom(session, user)
+		}
+	}
+	return biz.RoomNotExist
 }

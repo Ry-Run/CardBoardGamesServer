@@ -26,7 +26,7 @@ type Room struct {
 	dismissed     bool
 }
 
-// 1.推送房间号到客户端；2.推送游戏类型给客户端（进入游戏也要推送一次）
+// 1.推送房间号到客户端；2.推送游戏类型给客户端（进入游戏也要推送一次）；3.通知其他用户，此用户加入房间
 func (r *Room) UserEntryRoom(session *remote.Session, user *entity.User) *msError.Error {
 	r.RoomCreator = &proto.RoomCreator{
 		Uid: user.Uid,
@@ -43,6 +43,8 @@ func (r *Room) UserEntryRoom(session *remote.Session, user *entity.User) *msErro
 	session.Put("roomId", r.Id)
 	// 2.推送游戏类型给客户端
 	r.SelfEntryRoomPush(session, user.Uid)
+	// 3.通知其他用户，此用户加入房间
+	r.OtherUserEntryRoomPushData(session, user.Uid)
 	go r.addKickScheduleEvent(session, user.Uid)
 	return nil
 }
@@ -97,6 +99,13 @@ func (r *Room) GetRoomSceneInfoPush(session *remote.Session) {
 }
 
 func (r *Room) addKickScheduleEvent(session *remote.Session, uid string) {
+	r.Lock()
+	defer r.Unlock()
+	t, ok := r.KickSchedules[uid]
+	if ok {
+		t.Stop()
+		delete(r.KickSchedules, uid)
+	}
 	r.KickSchedules[uid] = time.AfterFunc(30*time.Second, func() {
 		logs.Info("kick 执行，用户 %v 长时间未准备", uid)
 		// 取消定时任务，目前 time.AfterFunc 就是一次性的，也可以不停止
@@ -171,10 +180,34 @@ func (r *Room) userReady(session *remote.Session, req request.RoomMessageReq) {
 		timer.Stop()
 		delete(r.KickSchedules, uid)
 	}
-	// push 用户座次，目前先给当前用户推送，按理应该给全部用户推送状态
-	r.ServerMessagePush([]string{uid}, proto.UserReadyPushData(user.ChairID), session)
+	// 给全部用户推送状态, push 用户座次
+	otherUsers := r.otherUsers(uid)
+	r.ServerMessagePush(otherUsers, proto.UserReadyPushData(user.ChairID), session)
 	// todo 判断是否可以进入游戏
-	
+
+}
+
+func (r *Room) JoinRoom(session *remote.Session, user *entity.User) *msError.Error {
+	return r.UserEntryRoom(session, user)
+}
+
+func (r *Room) OtherUserEntryRoomPushData(session *remote.Session, uid string) {
+	user, ok := r.users[uid]
+	if !ok {
+		return
+	}
+	others := r.otherUsers(uid)
+	r.ServerMessagePush(others, proto.OtherUserEntryRoomPushData(user), session)
+}
+
+func (r *Room) otherUsers(uid string) []string {
+	others := make([]string, 0)
+	for u, _ := range r.users {
+		if u != uid {
+			others = append(others, u)
+		}
+	}
+	return others
 }
 
 func NewRoom(id string, unionID int64, rule proto.GameRule, u base.UnionBase) *Room {

@@ -96,3 +96,14 @@ func UserReadyPushData(chairID int) any {
 	}
 	return pushMsg
 }
+
+func OtherUserEntryRoomPushData(user *RoomUser) any {
+	pushMsg := map[string]any{
+		"type":       OtherUserEntryRoomPush,
+		"pushRouter": "RoomMessagePush",
+		"data": map[string]any{
+			"roomUserInfo": user,
+		},
+	}
+	return pushMsg
+}
