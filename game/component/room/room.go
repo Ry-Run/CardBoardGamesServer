@@ -36,7 +36,8 @@ func (r *Room) UserEntryRoom(session *remote.Session, user *entity.User) *msErro
 	} else {
 		r.RoomCreator.CreatorType = proto.UnionCreatorType
 	}
-	r.users[user.Uid] = proto.ToRoomUser(user)
+	chairID := len(r.users)
+	r.users[user.Uid] = proto.ToRoomUser(user, chairID)
 	// 1.推送房间号到客户端
 	r.updateUserInfoRoomPush(session, user.Uid)
 	session.Put("roomId", r.Id)
@@ -68,6 +69,11 @@ func (r *Room) RoomMessageHandler(session *remote.Session, req request.RoomMessa
 	if req.Type == proto.GetRoomSceneInfoNotify {
 		r.GetRoomSceneInfoPush(session)
 	}
+
+	switch req.Type {
+	case proto.UserReadyNotify:
+		r.userReady(session, req)
+	}
 }
 
 func (r *Room) GetRoomSceneInfoPush(session *remote.Session) {
@@ -91,7 +97,7 @@ func (r *Room) GetRoomSceneInfoPush(session *remote.Session) {
 }
 
 func (r *Room) addKickScheduleEvent(session *remote.Session, uid string) {
-	r.KickSchedules[uid] = time.AfterFunc(10*time.Second, func() {
+	r.KickSchedules[uid] = time.AfterFunc(30*time.Second, func() {
 		logs.Info("kick 执行，用户 %v 长时间未准备", uid)
 		// 取消定时任务，目前 time.AfterFunc 就是一次性的，也可以不停止
 		timer, ok := r.KickSchedules[uid]
@@ -148,6 +154,27 @@ func (r *Room) cancelAllScheduler() {
 		timer.Stop()
 		delete(r.KickSchedules, uid)
 	}
+}
+
+// 1.push 用户的座次；2.修改用户状态；3.取消定时
+func (r *Room) userReady(session *remote.Session, req request.RoomMessageReq) {
+	// 修改状态
+	uid := session.GetUid()
+	user, ok := r.users[uid]
+	if !ok {
+		return
+	}
+	user.UserStatus = proto.Ready
+	// 取消定时任务
+	timer, ok := r.KickSchedules[uid]
+	if ok {
+		timer.Stop()
+		delete(r.KickSchedules, uid)
+	}
+	// push 用户座次，目前先给当前用户推送，按理应该给全部用户推送状态
+	r.ServerMessagePush([]string{uid}, proto.UserReadyPushData(user.ChairID), session)
+	// todo 判断是否可以进入游戏
+	
 }
 
 func NewRoom(id string, unionID int64, rule proto.GameRule, u base.UnionBase) *Room {

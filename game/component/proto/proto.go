@@ -85,3 +85,14 @@ func UserLeaveRoomPushData(user *RoomUser) any {
 	}
 	return pushMsg
 }
+
+func UserReadyPushData(chairID int) any {
+	pushMsg := map[string]any{
+		"type":       UserReadyPush,
+		"pushRouter": "RoomMessagePush",
+		"data": map[string]any{
+			"chairID": chairID,
+		},
+	}
+	return pushMsg
+}

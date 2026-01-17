@@ -46,7 +46,7 @@ const (
 	Dismiss            = 8
 )
 
-func ToRoomUser(user *entity.User) *RoomUser {
+func ToRoomUser(user *entity.User, chairID int) *RoomUser {
 	return &RoomUser{
 		UserInfo: UserInfo{
 			Uid:         user.Uid,
@@ -59,7 +59,7 @@ func ToRoomUser(user *entity.User) *RoomUser {
 			LastLoginIP: user.LastLoginIp,
 			Sex:         user.Sex,
 		},
-		ChairID:    0,
+		ChairID:    chairID,
 		UserStatus: None,
 	}
 }
