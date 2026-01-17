@@ -1,6 +1,7 @@
 package room
 
 import (
+	"common/biz"
 	"common/logs"
 	"core/models/entity"
 	"framework/msError"
@@ -36,7 +37,11 @@ func (r *Room) UserEntryRoom(session *remote.Session, user *entity.User) *msErro
 	} else {
 		r.RoomCreator.CreatorType = proto.UnionCreatorType
 	}
-	chairID := len(r.users)
+	// 最多 6 人参加: 0-5 号, 这里先写死 6 个，应该读取配置
+	chairID := r.genEmptyChairId(6)
+	if chairID == -1 {
+		return biz.RoomPlayerCountFull
+	}
 	r.users[user.Uid] = proto.ToRoomUser(user, chairID)
 	// 1.推送房间号到客户端
 	r.updateUserInfoRoomPush(session, user.Uid)
@@ -208,6 +213,27 @@ func (r *Room) otherUsers(uid string) []string {
 		}
 	}
 	return others
+}
+
+func (r *Room) genEmptyChairId(seats int) int {
+	r.Lock()
+	defer r.Unlock()
+	if len(r.users) == 0 {
+		return 0
+	}
+
+	chairs := make([]bool, seats)
+	for _, user := range r.users {
+		if user.ChairID >= 0 && user.ChairID < seats {
+			chairs[user.ChairID] = true
+		}
+	}
+	for i, occupy := range chairs {
+		if !occupy {
+			return i
+		}
+	}
+	return -1
 }
 
 func NewRoom(id string, unionID int64, rule proto.GameRule, u base.UnionBase) *Room {
