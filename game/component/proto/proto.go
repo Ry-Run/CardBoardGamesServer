@@ -34,3 +34,10 @@ const (
 	HongZhong            = 5
 	DouGongNiu           = 8
 )
+
+type RoomMessageType int
+
+const (
+	GetRoomSceneInfoNotify RoomMessageType = 318 // 获取房间场景信息通知
+	GetRoomSceneInfoPush                   = 418 // 获取房间场景信息推送
+)

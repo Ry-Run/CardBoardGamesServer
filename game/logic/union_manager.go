@@ -2,6 +2,7 @@ package logic
 
 import (
 	"fmt"
+	"game/component/room"
 	"math/rand"
 	"sync"
 	"time"
@@ -48,4 +49,13 @@ func (u *UnionManager) genRoomId() string {
 	minVal, maxVal := int64(100000), int64(999999)
 	roomIdInt := minVal + rand.Int63n(maxVal-minVal+1)
 	return fmt.Sprintf("%d", roomIdInt)
+}
+
+func (u *UnionManager) GetRoomById(roomId string) *room.Room {
+	for _, union := range u.unions {
+		if r, ok := union.Rooms[roomId]; ok {
+			return r
+		}
+	}
+	return nil
 }

@@ -22,9 +22,9 @@ func (s *Session) Put(k string, v any) {
 	s.data[k] = v
 }
 
-func (s *Session) Gut(k string) (any, bool) {
-	s.Lock()
-	defer s.Unlock()
+func (s *Session) Get(k string) (any, bool) {
+	s.RLock()
+	defer s.RUnlock()
 	v, ok := s.data[k]
 	return v, ok
 }

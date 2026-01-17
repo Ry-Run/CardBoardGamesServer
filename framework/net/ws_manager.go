@@ -279,7 +279,7 @@ func (m *WsManager) remoteReadChanHandler() {
 				}
 				// 0 normal 推送至客户端；1 session 更新本地 session 相关数据，不推送
 				switch msg.Type {
-				case 0:
+				case remote.NormalType:
 					if msg.Body == nil {
 						continue
 					}
@@ -291,8 +291,9 @@ func (m *WsManager) remoteReadChanHandler() {
 					case protocol.Push:
 						m.RemotePushChan <- &msg
 					}
-				case 1:
-
+				case remote.SessionType:
+					// 更新本地 session 相关数据
+					m.setSessionData(msg)
 				}
 			}
 		}
@@ -349,6 +350,17 @@ func (m *WsManager) remotePushChanHandler() {
 			}
 		}
 	}
+}
+
+func (m *WsManager) setSessionData(msg remote.Msg) {
+	m.RLock()
+	conn, ok := m.clts[msg.Cid]
+	m.RUnlock()
+	if !ok {
+		logs.Error("%s client down", msg.Cid)
+		return
+	}
+	conn.GetSession().SetData(msg.Uid, msg.SessionData)
 }
 
 func NewWsManager() *WsManager {

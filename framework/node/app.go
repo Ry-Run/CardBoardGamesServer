@@ -43,6 +43,7 @@ func (a *App) readChanMsg() {
 			// 根据 路由消息，分发给对应的 handler 处理
 			router := req.Router
 			session := remote.NewSession(a.remoteClt, &req)
+			session.setData(req.SessionData)
 			handlerFunc, ok := a.handlers[router]
 			if !ok || handlerFunc == nil {
 				continue

@@ -4,12 +4,16 @@ import (
 	"common/logs"
 	"encoding/json"
 	"framework/protocol"
+	"sync"
 )
 
 type Session struct {
-	clt      Client
-	msg      *Msg
-	pushChan chan *UserPushMsg
+	sync.RWMutex
+	clt             Client
+	msg             *Msg
+	pushChan        chan *UserPushMsg
+	data            map[string]any
+	pushSessionChan chan map[string]any
 }
 
 type PushMsg struct {
@@ -24,11 +28,14 @@ type UserPushMsg struct {
 
 func NewSession(client Client, msg *Msg) *Session {
 	session := Session{
-		clt:      client,
-		msg:      msg,
-		pushChan: make(chan *UserPushMsg, 1024),
+		clt:             client,
+		msg:             msg,
+		pushChan:        make(chan *UserPushMsg, 1024),
+		data:            make(map[string]any),
+		pushSessionChan: make(chan map[string]any, 1024),
 	}
 	go session.pushChanReader()
+	go session.pushSession()
 	return &session
 }
 
@@ -73,4 +80,45 @@ func (s *Session) pushChanReader() {
 			}
 		}
 	}
+}
+
+func (s *Session) Put(key string, val any) {
+	s.Lock()
+	defer s.Unlock()
+	s.data[key] = val
+	s.pushSessionChan <- s.data
+}
+
+func (s *Session) pushSession() {
+	for {
+		select {
+		case session := <-s.pushSessionChan:
+			msg := Msg{
+				Dst:         s.msg.Src,
+				Src:         s.msg.Dst,
+				Cid:         s.msg.Cid,
+				SessionData: session,
+				Type:        SessionType,
+			}
+			data, _ := json.Marshal(msg)
+			if err := s.clt.SendMsg(msg.Dst, data); err != nil {
+				logs.Error("push session err: %v", err)
+			}
+		}
+	}
+}
+
+func (s *Session) setData(data map[string]any) {
+	s.Lock()
+	defer s.Unlock()
+	for k, v := range data {
+		s.data[k] = v
+	}
+}
+
+func (s *Session) Get(key string) (any, bool) {
+	s.RLock()
+	defer s.RUnlock()
+	val, ok := s.data[key]
+	return val, ok
 }

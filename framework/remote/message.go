@@ -14,4 +14,6 @@ type Msg struct {
 	PushUser    []string
 }
 
+// 0 normal 推送至客户端；1 session 更新本地 session 相关数据，不推送
+const NormalType = 0
 const SessionType = 1
