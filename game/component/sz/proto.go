@@ -99,3 +99,110 @@ type BureauReview struct {
 	IsBanker  bool   `json:"isBanker"`
 	IsAbandon bool   `json:"isAbandon"`
 }
+
+const (
+	GameStatusPush      = 401 //游戏状态推送
+	GameSendCardsPush   = 402 //发牌推送
+	GameLookNotify      = 303 //看牌请求
+	GameLookPush        = 403
+	GamePourScoreNotify = 304 //下分请求
+	GamePourScorePush   = 404
+	GameCompareNotify   = 305 //比牌请求
+	GameComparePush     = 405
+	GameTurnPush        = 406 //操作推送
+	GameResultPush      = 407 //结果推送
+	GameEndPush         = 409 //结束推送
+	GameChatNotify      = 310 //游戏聊天
+	GameChatPush        = 410
+	GameBureauPush      = 411 //局数推送
+	GameAbandonNotify   = 312 //弃牌请求
+	GameAbandonPush     = 412
+	GameRoundPush       = 413 //轮数推送
+	GameBankerPush      = 414 //庄家推送
+	GameTrustNotify     = 315 //托管
+	GameTrustPush       = 415 //托管推送
+	GameReviewNotify    = 316 //牌面回顾
+	GameReviewPush      = 416
+)
+
+func UpdateUserInfoPushGold(gold int64) any {
+	return map[string]any{
+		"gold":       gold,
+		"pushRouter": "UpdateUserInfoPush",
+	}
+}
+
+func GameBankerPushData(bankerChairId int) any {
+	return map[string]any{
+		"type": GameBankerPush,
+		"data": map[string]any{
+			"bankerChairID": bankerChairId,
+		},
+		"pushRouter": "GameMessagePush",
+	}
+}
+
+func GameBureauPushData(curBureau int) any {
+	return map[string]any{
+		"type": GameBureauPush,
+		"data": map[string]any{
+			"curBureau": curBureau,
+		},
+		"pushRouter": "GameMessagePush",
+	}
+}
+
+func GameStatusPushData(gameStatus GameStatus, tick int) any {
+	return map[string]any{
+		"type": GameStatusPush,
+		"data": map[string]any{
+			"gameStatus": gameStatus,
+			"tick":       tick,
+		},
+		"pushRouter": "GameMessagePush",
+	}
+}
+
+func GameSendCardsPushData(handCards [][]int) any {
+	return map[string]any{
+		"type": GameSendCardsPush,
+		"data": map[string]any{
+			"handCards": handCards,
+		},
+		"pushRouter": "GameMessagePush",
+	}
+}
+
+func GamePourScorePushData(chairId, score, chairScore, scores int) any {
+	return map[string]any{
+		"type": GamePourScorePush,
+		"data": map[string]any{
+			"chairID":    chairId,
+			"score":      score,
+			"chairScore": chairScore,
+			"scores":     scores,
+		},
+		"pushRouter": "GameMessagePush",
+	}
+}
+
+func GameRoundPushData(round int) any {
+	return map[string]any{
+		"type": GameRoundPush,
+		"data": map[string]any{
+			"round": round,
+		},
+		"pushRouter": "GameMessagePush",
+	}
+}
+
+func GameTurnPushData(curChairID, curScore int) any {
+	return map[string]any{
+		"type": GameTurnPush,
+		"data": map[string]any{
+			"curChairID": curChairID,
+			"curScore":   curScore,
+		},
+		"pushRouter": "GameMessagePush",
+	}
+}

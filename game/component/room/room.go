@@ -25,6 +25,7 @@ type Room struct {
 	KickSchedules map[string]*time.Timer
 	union         base.UnionBase
 	dismissed     bool
+	gameStarted   bool
 }
 
 // 1.推送房间号到客户端；2.推送游戏类型给客户端（进入游戏也要推送一次）；3.通知其他用户，此用户加入房间
@@ -37,8 +38,8 @@ func (r *Room) UserEntryRoom(session *remote.Session, user *entity.User) *msErro
 	} else {
 		r.RoomCreator.CreatorType = proto.UnionCreatorType
 	}
-	// 最多 6 人参加: 0-5 号, 这里先写死 6 个，应该读取配置
-	chairID := r.genEmptyChairId(6)
+	// 最多 6 人参加: 0-5 号，按理前后端都有一个 MaxPlayerCount 配置
+	chairID := r.genEmptyChairId(r.GameRule.MaxPlayerCount)
 	if chairID == -1 {
 		return biz.RoomPlayerCountFull
 	}
@@ -188,8 +189,10 @@ func (r *Room) userReady(session *remote.Session, req request.RoomMessageReq) {
 	// 给全部用户推送状态, push 用户座次
 	otherUsers := r.otherUsers(uid)
 	r.ServerMessagePush(otherUsers, proto.UserReadyPushData(user.ChairID), session)
-	// todo 判断是否可以进入游戏
-
+	// 判断是否可以开始游戏
+	if r.IsStartGame() {
+		r.StartGame(session, user)
+	}
 }
 
 func (r *Room) JoinRoom(session *remote.Session, user *entity.User) *msError.Error {
@@ -234,6 +237,40 @@ func (r *Room) genEmptyChairId(seats int) int {
 		}
 	}
 	return -1
+}
+
+func (r *Room) IsStartGame() bool {
+	// 房间内准备人数 >= 最小开始游戏人数
+	userReadyCount := 0
+	for _, user := range r.users {
+		if user.UserStatus == proto.Ready {
+			userReadyCount++
+		}
+	}
+	return len(r.users) == userReadyCount && userReadyCount >= r.GameRule.MinPlayerCount
+}
+
+func (r *Room) StartGame(session *remote.Session, user *proto.RoomUser) {
+	if r.gameStarted {
+		return
+	}
+	r.gameStarted = true
+	for _, user := range r.users {
+		user.UserStatus = proto.Playing
+	}
+	r.GameFrame.StartGame(session, user)
+}
+
+func (r *Room) GetUsers() map[string]*proto.RoomUser {
+	return r.users
+}
+
+func (r *Room) GetAllUid() []string {
+	users := make([]string, len(r.users))
+	for uid, _ := range r.users {
+		users = append(users, uid)
+	}
+	return users
 }
 
 func NewRoom(id string, unionID int64, rule proto.GameRule, u base.UnionBase) *Room {
