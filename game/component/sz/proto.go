@@ -7,6 +7,8 @@ type MessageReq struct {
 
 type MessageData struct {
 	CuoPai bool `json:"cuopai"`
+	Score  int  `json:"score"` // 下分
+	Type   int  `json:"type"`  // 下分类型：1.跟注；2.加注
 }
 
 type GameData struct {
@@ -182,7 +184,7 @@ func GameSendCardsPushData(handCards [][]int) any {
 	}
 }
 
-func GamePourScorePushData(chairId, score, chairScore, scores int) any {
+func GamePourScorePushData(chairId, score, chairScore, scores, typ int) any {
 	return map[string]any{
 		"type": GamePourScorePush,
 		"data": map[string]any{
@@ -190,6 +192,7 @@ func GamePourScorePushData(chairId, score, chairScore, scores int) any {
 			"score":      score,
 			"chairScore": chairScore,
 			"scores":     scores,
+			"type":       typ,
 		},
 		"pushRouter": "GameMessagePush",
 	}

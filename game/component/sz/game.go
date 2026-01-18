@@ -76,7 +76,7 @@ func (g *GameFrame) StartGame(session *remote.Session, user *proto.RoomUser) {
 	// 再推送下分数据
 	g.gameData.CurScore = g.gameRule.BaseScore * g.gameRule.AddScores[0]
 	for _, u := range g.r.GetUsers() {
-		g.ServerMessagePush(uids, GamePourScorePushData(u.ChairID, g.gameData.CurScore, g.gameData.CurScore, 1), session)
+		g.ServerMessagePush(uids, GamePourScorePushData(u.ChairID, g.gameData.CurScore, g.gameData.CurScore, 1, 0), session)
 	}
 	// 7.轮数推送
 	g.gameData.Round = 1
@@ -123,8 +123,10 @@ func (g *GameFrame) GameMessageHandler(user *proto.RoomUser, session *remote.Ses
 	json.Unmarshal(msg, &req)
 	// 2.根据不同的类型，触发不同的操作
 	switch req.Type {
-	case Look:
+	case GameLookNotify:
 		g.OnGameLook(user, session, req.Data.CuoPai)
+	case GamePourScoreNotify:
+		g.OnGamePourScore(user, session, req.Data.Score, req.Data.Type)
 	}
 }
 
@@ -135,6 +137,7 @@ func (g *GameFrame) OnGameLook(user *proto.RoomUser, session *remote.Session, cu
 		logs.Warn("ID: %v room, sanzhang game look err：GameStatus=%v, chairId=%v", g.r.GetId(), g.gameData.GameStatus, user.ChairID)
 		return
 	}
+	// 用户可能已经输了，不能再进行下分操作
 	if !g.IsPlayingChairId(user.ChairID) {
 		logs.Warn("ID: %v room, sanzhang game look err：user uid=%v not playing", g.r.GetId(), user.UserInfo.Uid)
 		return
@@ -152,4 +155,80 @@ func (g *GameFrame) OnGameLook(user *proto.RoomUser, session *remote.Session, cu
 			g.ServerMessagePush([]string{uid}, GameLookPushData(g.gameData.CurChairID, nil, cuopai), session)
 		}
 	}
+}
+
+// 处理下分 1.保存用户下的分数，推送下分数据到其他用户 2.结束下分，座次移动到下一位，推送游戏状态，推送操作的座次
+func (g *GameFrame) OnGamePourScore(user *proto.RoomUser, session *remote.Session, score int, t int) {
+	//1.保存用户下的分数，推送下分数据到其他用户
+	// 当前游戏状态不是下分 || 当前可操作的玩家不是发送请求的玩家
+	if g.gameData.GameStatus != PourScore || g.gameData.CurChairID != user.ChairID {
+		logs.Warn("ID: %v room, sanzhang game pour score err：GameStatus=%v, chairId=%v", g.r.GetId(), g.gameData.GameStatus, user.ChairID)
+		return
+	}
+	// 用户可能已经输了，不能再进行下分操作
+	if !g.IsPlayingChairId(user.ChairID) {
+		logs.Warn("ID: %v room, sanzhang game pour score err：user uid=%v not playing", g.r.GetId(), user.UserInfo.Uid)
+		return
+	}
+	if score < 0 {
+		logs.Warn("ID: %v room, sanzhang game pour score err：score < 0", g.r.GetId())
+		return
+	}
+	if g.gameData.PourScores[user.ChairID] == nil {
+		g.gameData.PourScores[user.ChairID] = make([]int, 0)
+	}
+	// 用户的下分记录
+	g.gameData.PourScores[user.ChairID] = append(g.gameData.PourScores[user.ChairID], score)
+	// 所有人的分数
+	scores := 0
+	for _, pourScore := range g.gameData.PourScores {
+		if pourScore != nil {
+			for _, s := range pourScore {
+				scores += s
+			}
+		}
+	}
+	// 当前座次的总分
+	chairScore := 0
+	for _, s := range g.gameData.PourScores[user.ChairID] {
+		chairScore += s
+	}
+	g.ServerMessagePush(g.r.GetAllUid(), GamePourScorePushData(g.gameData.CurChairID, score, chairScore, scores, t), session)
+
+	// 2.结束下分，座次移动到下一位，推送游戏状态，推送操作的座次
+	g.endPourScore(session)
+}
+
+// 结束下分，座次推进，推送游戏状态，推送操作的座次
+func (g *GameFrame) endPourScore(session *remote.Session) {
+	// 1.推送轮次 todo 轮数大于规则的限制 结束游戏 进行结算
+	round := g.getCurRound()
+	g.ServerMessagePush(g.r.GetAllUid(), GameRoundPushData(round), session)
+	// 推进座次
+	for i := 0; i < g.gameData.ChairCount; i++ {
+		g.gameData.CurChairID++
+		g.gameData.CurChairID = g.gameData.CurChairID % g.gameData.ChairCount
+		if g.IsPlayingChairId(g.gameData.CurChairID) {
+			break
+		}
+	}
+	// 推送游戏状态
+	g.gameData.GameStatus = PourScore
+	g.ServerMessagePush(g.r.GetAllUid(), GameStatusPushData(g.gameData.GameStatus, 30), session)
+	// 推送操作
+	// ChairID 是当前可做操作的玩家的 chairId
+	g.ServerMessagePush(g.r.GetAllUid(), GameTurnPushData(g.gameData.CurChairID, g.gameData.CurScore), session)
+}
+
+// 获取当前轮次
+func (g *GameFrame) getCurRound() int {
+	cur := g.gameData.CurChairID
+	for i := 0; i < g.gameData.ChairCount; i++ {
+		cur++
+		cur = cur % g.gameData.ChairCount
+		if g.IsPlayingChairId(cur) {
+			return len(g.gameData.PourScores[cur])
+		}
+	}
+	return len(g.gameData.PourScores[g.gameData.CurChairID])
 }
