@@ -7,6 +7,8 @@ import (
 	"framework/remote"
 	"game/component/base"
 	"game/component/proto"
+
+	"github.com/jinzhu/copier"
 )
 
 type GameFrame struct {
@@ -40,8 +42,28 @@ func initGameData(rule proto.GameRule) *GameData {
 	}
 }
 
-func (g *GameFrame) GetGameData() any {
-	return g.gameData
+// 返回游戏数据，用户已看牌，则返回牌。并且隐藏其他用户的牌
+func (g *GameFrame) GetGameData(session *remote.Session) any {
+	user := g.r.GetUsers()[session.GetUid()]
+	// 深 copy
+	var gameData GameData
+	copier.CopyWithOption(&gameData, g.gameData, copier.Option{DeepCopy: true})
+	for i := 0; i < g.gameData.ChairCount; i++ {
+		// 如果用户发过牌
+		if g.gameData.HandCards[i] != nil {
+			// 隐藏掉牌
+			gameData.HandCards[i] = make([]int, 3)
+		} else {
+			// 用户没有牌
+			gameData.HandCards[i] = nil
+		}
+	}
+
+	// 用户已经看牌了
+	if g.gameData.LookCards[user.ChairID] == 1 {
+		gameData.HandCards[user.ChairID] = g.gameData.HandCards[user.ChairID]
+	}
+	return gameData
 }
 
 func (g *GameFrame) ServerMessagePush(users []string, data any, session *remote.Session) {
@@ -144,7 +166,7 @@ func (g *GameFrame) OnGameLook(user *proto.RoomUser, session *remote.Session, cu
 	}
 	// 设置玩家状态为已看牌
 	g.gameData.UserStatusArray[user.ChairID] = Look
-	g.gameData.LookCards[user.ChairID] = 1
+	g.gameData.LookCards[user.ChairID] = 1 // 1.看牌
 	// 推送消息
 	for uid, ru := range g.r.GetUsers() {
 		if uid == user.UserInfo.Uid {

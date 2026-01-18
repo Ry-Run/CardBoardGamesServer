@@ -74,11 +74,9 @@ func (r *Room) SelfEntryRoomPush(session *remote.Session, uid string) {
 }
 
 func (r *Room) RoomMessageHandler(session *remote.Session, req request.RoomMessageReq) {
-	if req.Type == proto.GetRoomSceneInfoNotify {
-		r.GetRoomSceneInfoPush(session)
-	}
-
 	switch req.Type {
+	case proto.GetRoomSceneInfoNotify:
+		r.GetRoomSceneInfoPush(session)
 	case proto.UserReadyNotify:
 		r.userReady(session, req)
 	}
@@ -98,7 +96,7 @@ func (r *Room) GetRoomSceneInfoPush(session *remote.Session) {
 			"roomCreatorInfo": r.RoomCreator,
 			"gameRule":        r.GameRule,
 			"roomUserInfoArr": roomUserInfoArr,
-			"gameData":        r.GameFrame.GetGameData(),
+			"gameData":        r.GameFrame.GetGameData(session),
 		},
 	}
 	session.Push([]string{session.GetUid()}, data, "ServerMessagePush")
