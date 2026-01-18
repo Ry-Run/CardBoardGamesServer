@@ -196,6 +196,7 @@ func GameRoundPushData(round int) any {
 	}
 }
 
+// ChairID 是当前可做操作的玩家的 chairId
 func GameTurnPushData(curChairID, curScore int) any {
 	return map[string]any{
 		"type": GameTurnPush,

@@ -55,6 +55,8 @@ func (g *GameFrame) StartGame(session *remote.Session, user *proto.RoomUser) {
 	if g.gameData.CurBureau == 0 {
 		g.gameData.BankerChairID = utils.Rand(len(uids))
 	}
+	// 设置庄家为当前操作的座次
+	g.gameData.CurChairID = g.gameData.BankerChairID
 	g.ServerMessagePush(uids, GameBankerPushData(g.gameData.BankerChairID), session)
 	// 3.局数推送
 	g.gameData.CurBureau++
@@ -78,9 +80,9 @@ func (g *GameFrame) StartGame(session *remote.Session, user *proto.RoomUser) {
 	g.gameData.Round = 1
 	g.ServerMessagePush(uids, GameRoundPushData(g.gameData.Round), session)
 	// 8.操作推送
-	for _, u := range g.r.GetUsers() {
-		g.ServerMessagePush(uids, GameTurnPushData(u.ChairID, g.gameData.CurScore), session)
-	}
+	// ChairID 是当前可做操作的玩家的 chairId
+	// 游戏开始时第一个可操作的座次是庄家位位置
+	g.ServerMessagePush(uids, GameTurnPushData(g.gameData.CurChairID, g.gameData.CurScore), session)
 }
 
 // 发牌
