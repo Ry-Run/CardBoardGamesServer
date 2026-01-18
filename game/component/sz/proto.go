@@ -1,5 +1,14 @@
 package sz
 
+type MessageReq struct {
+	Type int         `json:"type"`
+	Data MessageData `json:"data"`
+}
+
+type MessageData struct {
+	CuoPai bool `json:"cuopai"`
+}
+
 type GameData struct {
 	BankerChairID   int                      `json:"bankerChairID"`
 	ChairCount      int                      `json:"chairCount"`
@@ -203,6 +212,19 @@ func GameTurnPushData(curChairID, curScore int) any {
 		"data": map[string]any{
 			"curChairID": curChairID,
 			"curScore":   curScore,
+		},
+		"pushRouter": "GameMessagePush",
+	}
+}
+
+// 看牌
+func GameLookPushData(chairId int, cards []int, cuopai bool) any {
+	return map[string]any{
+		"type": GameLookPush,
+		"data": map[string]any{
+			"chairID": chairId,
+			"cards":   cards,
+			"cuopai":  cuopai,
 		},
 		"pushRouter": "GameMessagePush",
 	}

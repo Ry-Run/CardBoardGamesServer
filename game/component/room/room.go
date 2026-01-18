@@ -273,6 +273,18 @@ func (r *Room) GetAllUid() []string {
 	return users
 }
 
+func (r *Room) GameMessageHandler(session *remote.Session, msg []byte) {
+	user, ok := r.users[session.GetUid()]
+	if !ok {
+		return
+	}
+	r.GameFrame.GameMessageHandler(user, session, msg)
+}
+
+func (r *Room) GetId() string {
+	return r.Id
+}
+
 func NewRoom(id string, unionID int64, rule proto.GameRule, u base.UnionBase) *Room {
 	r := &Room{
 		Id:            id,

@@ -15,5 +15,6 @@ func Register(r *repo.Manager) node.LogicHandler {
 	handlers["unionHandler.joinRoom"] = unionHandler.JoinRoom
 	gameHandler := handler.NewGameHandler(r, manager)
 	handlers["gameHandler.roomMessageNotify"] = gameHandler.RoomMessageNotify
+	handlers["gameHandler.gameMessageNotify"] = gameHandler.GameMessageNotify
 	return handlers
 }

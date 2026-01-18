@@ -1,7 +1,9 @@
 package sz
 
 import (
+	"common/logs"
 	"common/utils"
+	"encoding/json"
 	"framework/remote"
 	"game/component/base"
 	"game/component/proto"
@@ -113,4 +115,41 @@ func (g *GameFrame) IsPlayingChairId(chairId int) bool {
 		}
 	}
 	return false
+}
+
+func (g *GameFrame) GameMessageHandler(user *proto.RoomUser, session *remote.Session, msg []byte) {
+	// 1.解析参数
+	var req MessageReq
+	json.Unmarshal(msg, &req)
+	// 2.根据不同的类型，触发不同的操作
+	switch req.Type {
+	case Look:
+		g.OnGameLook(user, session, req.Data.CuoPai)
+	}
+}
+
+// 看牌：给当前用户推送自己的牌，给其他用户推送此用户已看牌
+func (g *GameFrame) OnGameLook(user *proto.RoomUser, session *remote.Session, cuopai bool) {
+	// 当前游戏状态不是下分 || 当前可操作的玩家不是发送请求的玩家
+	if g.gameData.GameStatus != PourScore || g.gameData.CurChairID != user.ChairID {
+		logs.Warn("ID: %v room, sanzhang game look err：GameStatus=%v, chairId=%v", g.r.GetId(), g.gameData.GameStatus, user.ChairID)
+		return
+	}
+	if !g.IsPlayingChairId(user.ChairID) {
+		logs.Warn("ID: %v room, sanzhang game look err：user uid=%v not playing", g.r.GetId(), user.UserInfo.Uid)
+		return
+	}
+	// 设置玩家状态为已看牌
+	g.gameData.UserStatusArray[user.ChairID] = Look
+	g.gameData.LookCards[user.ChairID] = 1
+	// 推送消息
+	for uid, ru := range g.r.GetUsers() {
+		if uid == user.UserInfo.Uid {
+			// 当前操作的用户
+			g.ServerMessagePush([]string{uid}, GameLookPushData(g.gameData.CurChairID, g.gameData.HandCards[ru.ChairID], cuopai), session)
+		} else {
+			// 其他用户
+			g.ServerMessagePush([]string{uid}, GameLookPushData(g.gameData.CurChairID, nil, cuopai), session)
+		}
+	}
 }
