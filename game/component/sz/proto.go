@@ -6,9 +6,10 @@ type MessageReq struct {
 }
 
 type MessageData struct {
-	CuoPai bool `json:"cuopai"`
-	Score  int  `json:"score"` // 下分
-	Type   int  `json:"type"`  // 下分类型：1.跟注；2.加注
+	CuoPai  bool `json:"cuopai"`
+	Score   int  `json:"score"`   // 下分
+	Type    int  `json:"type"`    // 下分类型：1.跟注；2.加注
+	ChairID int  `json:"chairID"` // 比牌的对方 ChairID
 }
 
 type GameData struct {
@@ -22,6 +23,7 @@ type GameData struct {
 	HandCards       [][]int                  `json:"handCards"`
 	LookCards       []int                    `json:"lookCards"`
 	Loser           []int                    `json:"loser"`
+	Winner          []int                    `json:"winner"`
 	MaxBureau       int                      `json:"maxBureau"`
 	PourScores      [][]int                  `json:"pourScores"`
 	GameType        GameType                 `json:"gameType"`
@@ -75,9 +77,9 @@ const (
 	DanZhang CardsType = 1 //单牌
 	DuiZi              = 2 //对子
 	ShunZi             = 3 //顺子
-	JinHua             = 3 //金花
-	ShunJin            = 3 //顺金
-	BaoZi              = 3 //豹子
+	JinHua             = 4 //金花
+	ShunJin            = 5 //顺金
+	BaoZi              = 6 //豹子
 )
 
 type GameStatus int
@@ -228,6 +230,37 @@ func GameLookPushData(chairId int, cards []int, cuopai bool) any {
 			"chairID": chairId,
 			"cards":   cards,
 			"cuopai":  cuopai,
+		},
+		"pushRouter": "GameMessagePush",
+	}
+}
+
+func GameComparePushData(fromChairID, toChairID, winChairID, loseChairID int) any {
+	return map[string]any{
+		"type": GameComparePush,
+		"data": map[string]any{
+			"fromChairID": fromChairID,
+			"toChairID":   toChairID,
+			"winChairID":  winChairID,
+			"loseChairID": loseChairID,
+		},
+		"pushRouter": "GameMessagePush",
+	}
+}
+
+type GameResult struct {
+	Winners   []int   `json:"winners"`
+	WinScores []int   `json:"winScores"`
+	HandCards [][]int `json:"handCards"`
+	CurScores []int   `json:"curScores"`
+	Losers    []int   `json:"losers"`
+}
+
+func GameResultPushData(result *GameResult) any {
+	return map[string]any{
+		"type": GameResultPush,
+		"data": map[string]any{
+			"result": result,
 		},
 		"pushRouter": "GameMessagePush",
 	}

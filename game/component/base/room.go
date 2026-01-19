@@ -1,9 +1,14 @@
 package base
 
-import "game/component/proto"
+import (
+	"framework/remote"
+	"game/component/proto"
+)
 
 type RoomFrame interface {
 	GetUsers() map[string]*proto.RoomUser
 	GetAllUid() []string
 	GetId() string
+	EndGame(session *remote.Session)
+	UserReady(uid string, session *remote.Session)
 }

@@ -78,7 +78,7 @@ func (r *Room) RoomMessageHandler(session *remote.Session, req request.RoomMessa
 	case proto.GetRoomSceneInfoNotify:
 		r.GetRoomSceneInfoPush(session)
 	case proto.UserReadyNotify:
-		r.userReady(session, req)
+		r.userReady(session.GetUid(), session)
 	}
 }
 
@@ -170,9 +170,8 @@ func (r *Room) cancelAllScheduler() {
 }
 
 // 1.push 用户的座次；2.修改用户状态；3.取消定时
-func (r *Room) userReady(session *remote.Session, req request.RoomMessageReq) {
+func (r *Room) userReady(uid string, session *remote.Session) {
 	// 修改状态
-	uid := session.GetUid()
 	user, ok := r.users[uid]
 	if !ok {
 		return
@@ -277,6 +276,17 @@ func (r *Room) GameMessageHandler(session *remote.Session, msg []byte) {
 		return
 	}
 	r.GameFrame.GameMessageHandler(user, session, msg)
+}
+
+func (r *Room) EndGame(session *remote.Session) {
+	r.gameStarted = false
+	for _, user := range r.users {
+		user.UserStatus = proto.None
+	}
+}
+
+func (r *Room) UserReady(uid string, session *remote.Session) {
+	r.userReady(uid, session)
 }
 
 func (r *Room) GetId() string {

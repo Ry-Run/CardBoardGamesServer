@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-func Contains(data []string, include string) bool {
+func Contains[T int | string](data []T, include T) bool {
 	for _, v := range data {
 		if v == include {
 			return true
