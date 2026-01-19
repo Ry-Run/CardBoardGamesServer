@@ -45,7 +45,7 @@ func initGameData(rule proto.GameRule) *GameData {
 	}
 }
 
-// 返回游戏数据，用户已看牌，则返回牌。并且隐藏其他用户的牌
+// 返回游戏数据、游戏场景，用户已看牌，则返回牌。并且隐藏其他用户的牌
 func (g *GameFrame) GetGameData(session *remote.Session) any {
 	user := g.r.GetUsers()[session.GetUid()]
 	// 深 copy

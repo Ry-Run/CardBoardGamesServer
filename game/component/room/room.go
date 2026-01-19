@@ -7,6 +7,7 @@ import (
 	"framework/msError"
 	"framework/remote"
 	"game/component/base"
+	"game/component/mj"
 	"game/component/proto"
 	"game/component/sz"
 	"game/models/request"
@@ -302,8 +303,11 @@ func NewRoom(id string, unionID int64, rule proto.GameRule, u base.UnionBase) *R
 		KickSchedules: make(map[string]*time.Timer),
 		union:         u,
 	}
-	if rule.GameType == int(proto.PinSanZhang) {
+	switch proto.GameType(rule.GameType) {
+	case proto.PinSanZhang:
 		r.GameFrame = sz.NewGameFrame(rule, r)
+	case proto.HongZhong:
+		r.GameFrame = mj.NewGameFrame(rule, r)
 	}
 	return r
 }
