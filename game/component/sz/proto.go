@@ -265,3 +265,14 @@ func GameResultPushData(result *GameResult) any {
 		"pushRouter": "GameMessagePush",
 	}
 }
+
+func GameAbandonPushData(chairID int, status UserStatus) any {
+	return map[string]any{
+		"type": GameAbandonPush,
+		"data": map[string]any{
+			"chairID":    chairID,
+			"userStatus": status,
+		},
+		"pushRouter": "GameMessagePush",
+	}
+}

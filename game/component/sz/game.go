@@ -154,6 +154,8 @@ func (g *GameFrame) GameMessageHandler(user *proto.RoomUser, session *remote.Ses
 		g.OnGamePourScore(user, session, req.Data.Score, req.Data.Type)
 	case GameCompareNotify:
 		g.OnGameCompare(user, session, req.Data.ChairID)
+	case GameAbandonNotify:
+		g.OnGameAbandon(user, session)
 	}
 }
 
@@ -379,5 +381,29 @@ func (g *GameFrame) gameEnd(session *remote.Session) {
 		for uid, _ := range g.r.GetUsers() {
 			g.r.UserReady(uid, session)
 		}
+	})
+}
+
+func (g *GameFrame) OnGameAbandon(user *proto.RoomUser, session *remote.Session) {
+	// 用户可能已经输了，不能再进行下分操作
+	if !g.IsPlayingChairId(user.ChairID) {
+		logs.Warn("ID: %v room, sanzhang game look err：user uid=%v not playing", g.r.GetId(), user.UserInfo.Uid)
+		return
+	}
+	if utils.Contains(g.gameData.Loser, user.ChairID) {
+		return
+	}
+	g.gameData.Loser = append(g.gameData.Loser, user.ChairID)
+	for i := 0; i < g.gameData.ChairCount; i++ {
+		if g.IsPlayingChairId(i) && i != user.ChairID {
+			g.gameData.Winner = append(g.gameData.Winner, i)
+		}
+	}
+	g.gameData.UserStatusArray[user.ChairID] = Abandon
+	// 推送弃牌
+	g.ServerMessagePush(g.r.GetAllUid(), GameAbandonPushData(user.ChairID, g.gameData.UserStatusArray[user.ChairID]), session)
+	// 结束下分
+	time.AfterFunc(time.Second, func() {
+		g.endPourScore(session)
 	})
 }
