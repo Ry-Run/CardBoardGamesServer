@@ -245,6 +245,11 @@ func (r *Room) IsStartGame() bool {
 			userReadyCount++
 		}
 	}
+
+	if r.GameRule.GameType == proto.HongZhong {
+		return len(r.users) == userReadyCount && userReadyCount >= r.GameRule.MaxPlayerCount
+	}
+
 	return len(r.users) == userReadyCount && userReadyCount >= r.GameRule.MinPlayerCount
 }
 

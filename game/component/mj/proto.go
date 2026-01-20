@@ -18,7 +18,7 @@ type GameData struct {
 	MaxBureau      int             `json:"maxBureau"`      //最大局数
 	CurChairID     int             `json:"curChairID"`     //当前玩家
 	UserTrustArray []int           `json:"userTrustArray"` //托管
-	HandCards      [][]int         `json:"handCards"`      //手牌
+	HandCards      [][]CardID      `json:"handCards"`      //手牌
 	OperateArrays  [][]OperateType `json:"operateArrays"`  //操作
 	OperateRecord  []OperateRecord `json:"operateRecord"`  //操作记录
 	RestCardsCount int             `json:"restCardsCount"` //剩余牌数
@@ -41,7 +41,7 @@ type MyMaCard struct {
 }
 type OperateRecord struct {
 	ChairID int         `json:"chairID"`
-	Card    int         `json:"card"`
+	Card    CardID      `json:"card"`
 	Operate OperateType `json:"operate"`
 }
 type OperateType int
@@ -91,3 +91,102 @@ const (
 const OperateTime int = 30 //操作时间
 const OperateQi int = 30   //弃牌操作时间
 const OperatePg int = 30   //碰杠操作时间
+
+const (
+	GameStatusPush         = 401 //游戏状态推送
+	GameBankerPush         = 402 //庄家推送
+	GameDicesPush          = 403 //骰子推送
+	GameSendCardsPush      = 404 //发牌推送
+	GameRestCardsCountPush = 405 //剩余牌数推送
+	GameTurnPush           = 406 //操作推送 轮到谁出牌了
+	GameTurnOperateNotify  = 307 //操作通知
+	GameTurnOperatePush    = 407 //操作推送
+	GameResultPush         = 408 //结果推送
+	GameBureauPush         = 409 //局数推送
+	GameEndPush            = 410 //结束推送
+	GameChatNotify         = 311 //游戏聊天
+	GameChatPush           = 411
+	GameTrustNotify        = 312 //托管通知
+	GameTrustPush          = 412 //托管推送
+	GameReviewNotify       = 313 //游戏回顾通知
+	GameReviewPush         = 413 //游戏回顾推送
+	GameDismissPush        = 414 //解散推送
+	GameGetCardNotify      = 315 //拿牌通知
+	GameGetCardPush        = 415 //拿牌推送
+)
+
+func GameStatusPushData(gameStatus GameStatus, tick int) any {
+	return map[string]any{
+		"type": GameStatusPush,
+		"data": map[string]any{
+			"gameStatus": gameStatus,
+			"tick":       tick,
+		},
+		"pushRouter": "GameMessagePush",
+	}
+}
+
+func GameBankerPushData(bankerChairId int) any {
+	return map[string]any{
+		"type": GameBankerPush,
+		"data": map[string]any{
+			"bankerChairID": bankerChairId,
+		},
+		"pushRouter": "GameMessagePush",
+	}
+}
+
+func GameDicesPushData(dice1, dice2 int) any {
+	return map[string]any{
+		"type": GameDicesPush,
+		"data": map[string]any{
+			"dice1": dice1,
+			"dice2": dice2,
+		},
+		"pushRouter": "GameMessagePush",
+	}
+}
+
+func GameSendCardsPushData(handCards [][]CardID, chairID int) any {
+	return map[string]any{
+		"type": GameSendCardsPush,
+		"data": map[string]any{
+			"handCards": handCards,
+			"chairID":   chairID,
+		},
+		"pushRouter": "GameMessagePush",
+	}
+}
+
+func GameRestCardsCountPushData(restCardsCount int) any {
+	return map[string]any{
+		"type": GameRestCardsCountPush,
+		"data": map[string]any{
+			"restCardsCount": restCardsCount,
+		},
+		"pushRouter": "GameMessagePush",
+	}
+}
+
+func GameBureauPushData(CurBureau int) any {
+	return map[string]any{
+		"type": GameBureauPush,
+		"data": map[string]any{
+			"CurBureau": CurBureau,
+		},
+		"pushRouter": "GameMessagePush",
+	}
+}
+
+func GameTurnPushData(chairID int, card CardID, tick int, operateArray []OperateType) any {
+	return map[string]any{
+		"type": GameTurnPush,
+		"data": map[string]any{
+			"chairID":      chairID,
+			"card":         card,
+			"tick":         tick,
+			"operateArray": operateArray,
+		},
+		"pushRouter": "GameMessagePush",
+	}
+}
