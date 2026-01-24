@@ -8,6 +8,10 @@ type MessageReq struct {
 }
 
 type MessageData struct {
+	ChairID     int    `json:"chairID"`
+	Type        int    `json:"type"`
+	Msg         string `json:"msg"`
+	RecipientID int    `json:"recipientID"`
 }
 
 type GameData struct {
@@ -188,6 +192,19 @@ func GameTurnPushData(chairID int, card mp.CardID, tick int, operateArray []Oper
 			"card":         card,
 			"tick":         tick,
 			"operateArray": operateArray,
+		},
+		"pushRouter": "GameMessagePush",
+	}
+}
+
+func GameChatPushData(chairID, t int, msg string, recipientID int) any {
+	return map[string]any{
+		"type": GameChatPush,
+		"data": map[string]any{
+			"chairID":     chairID,
+			"type":        t,
+			"msg":         msg,
+			"recipientID": recipientID,
 		},
 		"pushRouter": "GameMessagePush",
 	}

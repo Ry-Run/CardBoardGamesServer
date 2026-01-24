@@ -3,6 +3,7 @@ package mj
 import (
 	"common/logs"
 	"common/utils"
+	"encoding/json"
 	"framework/remote"
 	"game/component/base"
 	mjp "game/component/mj/mp"
@@ -99,7 +100,12 @@ func (g *GameFrame) StartGame(session *remote.Session, user *proto.RoomUser) {
 }
 
 func (g *GameFrame) GameMessageHandler(user *proto.RoomUser, session *remote.Session, msg []byte) {
-
+	var req MessageReq
+	json.Unmarshal(msg, &req)
+	switch req.Type {
+	case GameChatNotify:
+		g.onGameChat(user, session, req.Data)
+	}
 }
 
 func (g *GameFrame) sendGameStatus(gameStatus GameStatus, tick int, session *remote.Session) {
@@ -191,4 +197,8 @@ func (g *GameFrame) getMyOperateArray(chairID int, card mjp.CardID, session *rem
 		operateArray = append(operateArray, HuZhi)
 	}
 	return operateArray
+}
+
+func (g *GameFrame) onGameChat(user *proto.RoomUser, session *remote.Session, data MessageData) {
+	g.ServerMessagePush(g.r.GetAllUid(), GameChatPushData(user.ChairID, data.Type, data.Msg, data.RecipientID), session)
 }
