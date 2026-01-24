@@ -209,7 +209,8 @@ func (g *GameFrame) onGameChat(user *proto.RoomUser, session *remote.Session, da
 }
 
 func (g *GameFrame) onGameTurnOperate(user *proto.RoomUser, session *remote.Session, data MessageData) {
-	if data.Operate == Qi {
+	switch data.Operate {
+	case Qi:
 		// 1.向所有人推送 当前用户的操作
 		g.ServerMessagePush(g.r.GetAllUid(), GameTurnOperatePushData(user.ChairID, data.Card, data.Operate, true), session)
 		// 删除这个牌
@@ -223,6 +224,31 @@ func (g *GameFrame) onGameTurnOperate(user *proto.RoomUser, session *remote.Sess
 		g.gameData.OperateArrays[user.ChairID] = nil
 		// 到下一个用户操作
 		g.nextTurn(data.Card, session)
+	case Peng:
+		// 碰一张牌，出一张牌
+		// 1.当前用户的操作是否成功 告诉所有人
+		// 前端发送 0 代表用户出的上一张牌
+		if data.Card == 0 {
+			length := len(g.gameData.OperateRecord)
+			if length == 0 {
+				// 没记录，出错
+				logs.Error("用户碰操作，但是没有上一个用户操作")
+			} else {
+				data.Card = g.gameData.OperateRecord[length-1].Card
+			}
+		}
+		g.ServerMessagePush(g.r.GetAllUid(), GameTurnOperatePushData(user.ChairID, data.Card, data.Operate, true), session)
+		// 碰的牌加进来，相当于摸了一张牌 => 14 张，所以接着要打出一张
+		g.gameData.HandCards[user.ChairID] = append(g.gameData.HandCards[user.ChairID], data.Card)
+		// 添加弃牌操作
+		g.gameData.OperateArrays[user.ChairID] = []OperateType{Qi}
+		// 碰相当于损失 两张牌
+		g.gameData.OperateRecord = append(g.gameData.OperateRecord, OperateRecord{ChairID: user.ChairID, Card: data.Card, Operate: data.Operate})
+		// 2.让用户出牌
+		g.gameData.CurChairID = user.ChairID
+		g.ServerMessagePush(g.r.GetAllUid(), GameTurnPushData(user.ChairID, 0, OperateTime, g.gameData.OperateArrays[user.ChairID]), session)
+	default:
+		logs.Warn("非法操作")
 	}
 }
 

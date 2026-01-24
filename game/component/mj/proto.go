@@ -186,12 +186,18 @@ func GameBureauPushData(CurBureau int) any {
 	}
 }
 
+// chairID 摸牌的玩家席位，card 新摸的牌（如果没有摸牌，就传 1-35 以外的数字）
 func GameTurnPushData(chairID int, card mp.CardID, tick int, operateArray []OperateType) any {
+	var c any
+	if card > 0 && card < 36 {
+		c = card
+	}
+
 	return map[string]any{
 		"type": GameTurnPush,
 		"data": map[string]any{
 			"chairID":      chairID,
-			"card":         card,
+			"card":         c,
 			"tick":         tick,
 			"operateArray": operateArray,
 		},
