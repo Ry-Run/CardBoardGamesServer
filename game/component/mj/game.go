@@ -8,12 +8,14 @@ import (
 	"game/component/base"
 	mjp "game/component/mj/mp"
 	"game/component/proto"
+	"sync"
 	"time"
 
 	"github.com/jinzhu/copier"
 )
 
 type GameFrame struct {
+	sync.RWMutex
 	r          base.RoomFrame
 	gameRule   proto.GameRule
 	gameData   *GameData
@@ -225,6 +227,8 @@ func (g *GameFrame) onGameTurnOperate(user *proto.RoomUser, session *remote.Sess
 }
 
 func (g *GameFrame) delCards(cards []mjp.CardID, card mjp.CardID, times int) []mjp.CardID {
+	g.Lock()
+	defer g.Unlock()
 	for i, v := range cards {
 		if v == card && times > 0 {
 			cards = append(cards[:i], cards[i+1:]...)
@@ -234,9 +238,28 @@ func (g *GameFrame) delCards(cards []mjp.CardID, card mjp.CardID, times int) []m
 	return cards
 }
 
-func (g *GameFrame) nextTurn(card mjp.CardID, session *remote.Session) {
-	// todo 可以让下一个用户判断 card 可以做的操作：胡、碰、杠...
-	// 简单的让下一个用户摸牌
-	nextTurnID := (g.gameData.CurChairID + 1) % g.gameData.ChairCount
-	g.setTurn(nextTurnID, session)
+func (g *GameFrame) nextTurn(lastCard mjp.CardID, session *remote.Session) {
+	// 在下一个用户摸牌之前，判断其他玩家在这个 card 上可以做的操作：胡、碰、杠...
+	hasOtherOp := false
+	if lastCard > 0 && lastCard < 36 {
+		for i := 0; i < g.gameData.ChairCount; i++ {
+			// 跳过当前玩家
+			if i == g.gameData.CurChairID {
+				continue
+			}
+			operateArray := g.logic.getOperateArray(g.gameData.HandCards[i], lastCard)
+			if len(operateArray) > 0 {
+				// 用户可以做一些操作
+				hasOtherOp = true
+				// 通知用户可以操作，因为不用摸牌，这里通知到所有用户（但是其他用户就知道此用户有哪些操作了），但是只有 chairID=i 有对应操作
+				g.ServerMessagePush(g.r.GetAllUid(), GameTurnPushData(i, lastCard, OperateTime, operateArray), session)
+				g.gameData.OperateArrays[i] = operateArray
+			}
+		}
+	}
+	if !hasOtherOp {
+		// 简单的让下一个用户摸牌
+		nextTurnID := (g.gameData.CurChairID + 1) % g.gameData.ChairCount
+		g.setTurn(nextTurnID, session)
+	}
 }

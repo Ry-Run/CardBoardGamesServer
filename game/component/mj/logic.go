@@ -103,6 +103,37 @@ func (l *Logic) canHu(cards []mp.CardID, card mp.CardID) bool {
 	return l.huLogic.CheckHu(cards, []mp.CardID{Zhong}, card)
 }
 
+func (l *Logic) getOperateArray(cards []mp.CardID, card mp.CardID) []OperateType {
+	operateArray := make([]OperateType, 0)
+	if card < 0 || card > 35 {
+		return operateArray
+	}
+	sameCard := 0
+	for _, c := range cards {
+		if c == card {
+			sameCard++
+		}
+	}
+
+	// 判断碰
+	if sameCard >= 2 {
+		operateArray = append(operateArray, Peng)
+	}
+	// 吃杠
+	if sameCard >= 3 {
+		operateArray = append(operateArray, GangChi)
+	}
+	// 吃胡
+	if l.canHu(cards, card) {
+		operateArray = append(operateArray, HuChi)
+	}
+	// 可以过
+	if len(operateArray) > 0 {
+		operateArray = append(operateArray, Guo)
+	}
+	return operateArray
+}
+
 func NewLogic(gameType GameType, qidui bool) *Logic {
 	return &Logic{
 		gameType: gameType,
