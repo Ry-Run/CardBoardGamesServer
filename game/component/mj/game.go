@@ -5,6 +5,7 @@ import (
 	"common/utils"
 	"framework/remote"
 	"game/component/base"
+	mjp "game/component/mj/mp"
 	"game/component/proto"
 	"time"
 
@@ -31,7 +32,7 @@ func NewGameFrame(rule proto.GameRule, room base.RoomFrame) *GameFrame {
 func initGameData(rule proto.GameRule) *GameData {
 	g := &GameData{
 		ChairCount:     rule.MaxPlayerCount,
-		HandCards:      make([][]CardID, rule.MaxPlayerCount),
+		HandCards:      make([][]mjp.CardID, rule.MaxPlayerCount),
 		GameStatus:     GameStatusNone,
 		OperateRecord:  make([]OperateRecord, 0),
 		OperateArrays:  make([][]OperateType, rule.MaxPlayerCount),
@@ -50,12 +51,12 @@ func (g *GameFrame) GetGameData(session *remote.Session) any {
 	userChairId := g.r.GetUsers()[session.GetUid()].ChairID
 	var gameData GameData
 	copier.CopyWithOption(gameData, g.gameData, copier.Option{DeepCopy: true, IgnoreEmpty: true})
-	handCards := make([][]CardID, g.gameData.ChairCount)
+	handCards := make([][]mjp.CardID, g.gameData.ChairCount)
 	for chairId, cards := range g.gameData.HandCards {
 		if chairId == userChairId {
 			handCards[chairId] = cards
 		} else {
-			handCards[chairId] = make([]CardID, len(cards))
+			handCards[chairId] = make([]mjp.CardID, len(cards))
 			// 每张牌置为 36 表示空牌
 			for i := range handCards[chairId] {
 				handCards[chairId][i] = 36
@@ -120,12 +121,12 @@ func (g *GameFrame) sendHandCards(session *remote.Session) {
 	}
 	// 推送手牌
 	for uid, user := range g.r.GetUsers() {
-		handCards := make([][]CardID, g.gameData.ChairCount)
+		handCards := make([][]mjp.CardID, g.gameData.ChairCount)
 		for i := range handCards {
 			if i == user.ChairID {
 				handCards[i] = g.gameData.HandCards[i]
 			} else {
-				handCards[i] = make([]CardID, len(g.gameData.HandCards[i]))
+				handCards[i] = make([]mjp.CardID, len(g.gameData.HandCards[i]))
 				for index := range handCards[i] {
 					handCards[i][index] = 36 // 表示空牌
 				}
@@ -184,7 +185,10 @@ func (g *GameFrame) sendRestCardsCount(session *remote.Session) {
 }
 
 // 用户当前可操作的行为：杠、碰、糊、弃牌等
-func (g *GameFrame) getMyOperateArray(id int, card CardID, session *remote.Session) []OperateType {
+func (g *GameFrame) getMyOperateArray(chairID int, card mjp.CardID, session *remote.Session) []OperateType {
 	var operateArray = []OperateType{Qi}
+	if g.logic.canHu(g.gameData.HandCards[chairID], -1) {
+		operateArray = append(operateArray, HuZhi)
+	}
 	return operateArray
 }

@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v6.33.3
-// source: user.proto
+// source: user.mp
 
 package pb
 
@@ -138,7 +138,7 @@ var File_user_proto protoreflect.FileDescriptor
 const file_user_proto_rawDesc = "" +
 	"\n" +
 	"\n" +
-	"user.proto\"\x86\x01\n" +
+	"user.mp\"\x86\x01\n" +
 	"\x0eRegisterParams\x12\x18\n" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x1a\n" +
 	"\bpassword\x18\x02 \x01(\tR\bpassword\x12$\n" +

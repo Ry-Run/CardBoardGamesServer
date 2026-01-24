@@ -2,74 +2,63 @@ package mj
 
 import (
 	"common/utils"
+	"game/component/mj/alg"
+	"game/component/mj/mp"
 	"sync"
 )
 
-type CardID int
-
-type CardIDs []CardID
-
-func (c CardIDs) Len() int {
-	return len(c)
-}
-func (c CardIDs) Less(i, j int) bool {
-	return c[i] < c[j]
-}
-func (c CardIDs) Swap(i, j int) {
-	c[i], c[j] = c[j], c[i]
-}
-
 const (
 	// 万 1-9
-	Wan1 CardID = 1
-	Wan2 CardID = 2
-	Wan3 CardID = 3
-	Wan4 CardID = 4
-	Wan5 CardID = 5
-	Wan6 CardID = 6
-	Wan7 CardID = 7
-	Wan8 CardID = 8
-	Wan9 CardID = 9
+	Wan1 mp.CardID = 1
+	Wan2 mp.CardID = 2
+	Wan3 mp.CardID = 3
+	Wan4 mp.CardID = 4
+	Wan5 mp.CardID = 5
+	Wan6 mp.CardID = 6
+	Wan7 mp.CardID = 7
+	Wan8 mp.CardID = 8
+	Wan9 mp.CardID = 9
 	// 筒
-	Tong1 CardID = 11
-	Tong2 CardID = 12
-	Tong3 CardID = 13
-	Tong4 CardID = 14
-	Tong5 CardID = 15
-	Tong6 CardID = 16
-	Tong7 CardID = 17
-	Tong8 CardID = 18
-	Tong9 CardID = 19
+	Tong1 mp.CardID = 11
+	Tong2 mp.CardID = 12
+	Tong3 mp.CardID = 13
+	Tong4 mp.CardID = 14
+	Tong5 mp.CardID = 15
+	Tong6 mp.CardID = 16
+	Tong7 mp.CardID = 17
+	Tong8 mp.CardID = 18
+	Tong9 mp.CardID = 19
 	// 条
-	Tiao1 CardID = 21
-	Tiao2 CardID = 22
-	Tiao3 CardID = 23
-	Tiao4 CardID = 24
-	Tiao5 CardID = 25
-	Tiao6 CardID = 26
-	Tiao7 CardID = 27
-	Tiao8 CardID = 28
-	Tiao9 CardID = 29
+	Tiao1 mp.CardID = 21
+	Tiao2 mp.CardID = 22
+	Tiao3 mp.CardID = 23
+	Tiao4 mp.CardID = 24
+	Tiao5 mp.CardID = 25
+	Tiao6 mp.CardID = 26
+	Tiao7 mp.CardID = 27
+	Tiao8 mp.CardID = 28
+	Tiao9 mp.CardID = 29
 	// 红中
-	Dong  CardID = 31
-	Nan   CardID = 32
-	Xi    CardID = 33
-	Bei   CardID = 34
-	Zhong CardID = 35
+	Dong  mp.CardID = 31
+	Nan   mp.CardID = 32
+	Xi    mp.CardID = 33
+	Bei   mp.CardID = 34
+	Zhong mp.CardID = 35
 	// 36 空牌
 )
 
 type Logic struct {
 	sync.RWMutex
-	cards    []CardID
+	cards    []mp.CardID
 	gameType GameType
 	qidui    bool
+	huLogic  *alg.HuLogic
 }
 
 func (l *Logic) washCards() {
 	l.Lock()
 	defer l.Unlock()
-	l.cards = []CardID{
+	l.cards = []mp.CardID{
 		Wan1, Wan2, Wan3, Wan4, Wan5, Wan6, Wan7, Wan8, Wan9,
 		Wan1, Wan2, Wan3, Wan4, Wan5, Wan6, Wan7, Wan8, Wan9,
 		Wan1, Wan2, Wan3, Wan4, Wan5, Wan6, Wan7, Wan8, Wan9,
@@ -94,7 +83,7 @@ func (l *Logic) washCards() {
 	}
 }
 
-func (l *Logic) getCards(num int) []CardID {
+func (l *Logic) getCards(num int) []mp.CardID {
 	l.Lock()
 	defer l.Unlock()
 	if len(l.cards) < num {
@@ -109,9 +98,15 @@ func (l *Logic) getRestCardsCount() int {
 	return len(l.cards)
 }
 
+// 糊牌
+func (l *Logic) canHu(cards []mp.CardID, card mp.CardID) bool {
+	return l.huLogic.CheckHu(cards, []mp.CardID{Zhong}, card)
+}
+
 func NewLogic(gameType GameType, qidui bool) *Logic {
 	return &Logic{
 		gameType: gameType,
 		qidui:    qidui,
+		huLogic:  alg.NewHuLogic(),
 	}
 }
