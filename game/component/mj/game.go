@@ -105,6 +105,8 @@ func (g *GameFrame) GameMessageHandler(user *proto.RoomUser, session *remote.Ses
 	switch req.Type {
 	case GameChatNotify:
 		g.onGameChat(user, session, req.Data)
+	case GameTurnOperateNotify:
+		g.onGameTurnOperate(user, session, req.Data)
 	}
 }
 
@@ -161,6 +163,7 @@ func (g *GameFrame) setTurn(chairID int, session *remote.Session) {
 		logs.Warn("玩家已经拿过牌了")
 		return
 	}
+	// 摸一张牌
 	card := g.logic.getCards(1)[0]
 	g.gameData.HandCards[chairID] = append(g.gameData.HandCards[chairID], card)
 	// 给所有玩家推送 这个玩家拿到了一张牌，当前用户是明牌，其他玩家看到暗牌
@@ -201,4 +204,39 @@ func (g *GameFrame) getMyOperateArray(chairID int, card mjp.CardID, session *rem
 
 func (g *GameFrame) onGameChat(user *proto.RoomUser, session *remote.Session, data MessageData) {
 	g.ServerMessagePush(g.r.GetAllUid(), GameChatPushData(user.ChairID, data.Type, data.Msg, data.RecipientID), session)
+}
+
+func (g *GameFrame) onGameTurnOperate(user *proto.RoomUser, session *remote.Session, data MessageData) {
+	if data.Operate == Qi {
+		// 1.向所有人推送 当前用户的操作
+		g.ServerMessagePush(g.r.GetAllUid(), GameTurnOperatePushData(user.ChairID, data.Card, data.Operate, true), session)
+		// 删除这个牌
+		g.gameData.HandCards[user.ChairID] = g.delCards(g.gameData.HandCards[user.ChairID], data.Card, 1)
+		g.gameData.OperateRecord = append(g.gameData.OperateRecord, OperateRecord{
+			ChairID: user.ChairID,
+			Card:    data.Card,
+			Operate: Qi,
+		})
+		// 用户不能再操作，用户可操作列表置为 nil
+		g.gameData.OperateArrays[user.ChairID] = nil
+		// 到下一个用户操作
+		g.nextTurn(data.Card, session)
+	}
+}
+
+func (g *GameFrame) delCards(cards []mjp.CardID, card mjp.CardID, times int) []mjp.CardID {
+	for i, v := range cards {
+		if v == card && times > 0 {
+			cards = append(cards[:i], cards[i+1:]...)
+			times--
+		}
+	}
+	return cards
+}
+
+func (g *GameFrame) nextTurn(card mjp.CardID, session *remote.Session) {
+	// todo 可以让下一个用户判断 card 可以做的操作：胡、碰、杠...
+	// 简单的让下一个用户摸牌
+	nextTurnID := (g.gameData.CurChairID + 1) % g.gameData.ChairCount
+	g.setTurn(nextTurnID, session)
 }
