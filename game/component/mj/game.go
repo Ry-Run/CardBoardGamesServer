@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"framework/remote"
 	"game/component/base"
-	mjp "game/component/mj/mp"
+	"game/component/mj/mp"
 	"game/component/proto"
 	"sync"
 	"time"
@@ -21,21 +21,23 @@ type GameFrame struct {
 	gameData   *GameData
 	logic      *Logic
 	gameResult *GameResult
+	testCards  []mp.CardID
 }
 
 func NewGameFrame(rule proto.GameRule, room base.RoomFrame) *GameFrame {
 	return &GameFrame{
-		r:        room,
-		gameRule: rule,
-		gameData: initGameData(rule),
-		logic:    NewLogic(GameType(rule.GameFrameType), rule.Qidui),
+		r:         room,
+		gameRule:  rule,
+		gameData:  initGameData(rule),
+		logic:     NewLogic(GameType(rule.GameFrameType), rule.Qidui),
+		testCards: make([]mp.CardID, rule.MaxPlayerCount),
 	}
 }
 
 func initGameData(rule proto.GameRule) *GameData {
 	g := &GameData{
 		ChairCount:     rule.MaxPlayerCount,
-		HandCards:      make([][]mjp.CardID, rule.MaxPlayerCount),
+		HandCards:      make([][]mp.CardID, rule.MaxPlayerCount),
 		GameStatus:     GameStatusNone,
 		OperateRecord:  make([]OperateRecord, 0),
 		OperateArrays:  make([][]OperateType, rule.MaxPlayerCount),
@@ -55,12 +57,12 @@ func (g *GameFrame) GetGameData(session *remote.Session) any {
 	userChairId := g.r.GetUsers()[session.GetUid()].ChairID
 	var gameData GameData
 	copier.CopyWithOption(gameData, g.gameData, copier.Option{DeepCopy: true, IgnoreEmpty: true})
-	handCards := make([][]mjp.CardID, g.gameData.ChairCount)
+	handCards := make([][]mp.CardID, g.gameData.ChairCount)
 	for chairId, cards := range g.gameData.HandCards {
 		if chairId == userChairId {
 			handCards[chairId] = cards
 		} else {
-			handCards[chairId] = make([]mjp.CardID, len(cards))
+			handCards[chairId] = make([]mp.CardID, len(cards))
 			// 每张牌置为 36 表示空牌
 			for i := range handCards[chairId] {
 				handCards[chairId][i] = 36
@@ -110,6 +112,8 @@ func (g *GameFrame) GameMessageHandler(user *proto.RoomUser, session *remote.Ses
 		g.onGameChat(user, session, req.Data)
 	case GameTurnOperateNotify:
 		g.onGameTurnOperate(user, session, req.Data)
+	case GameGetCardNotify:
+		g.onGameGetCard(user, session, req.Data)
 	}
 }
 
@@ -132,12 +136,12 @@ func (g *GameFrame) sendHandCards(session *remote.Session) {
 	}
 	// 推送手牌
 	for uid, user := range g.r.GetUsers() {
-		handCards := make([][]mjp.CardID, g.gameData.ChairCount)
+		handCards := make([][]mp.CardID, g.gameData.ChairCount)
 		for i := range handCards {
 			if i == user.ChairID {
 				handCards[i] = g.gameData.HandCards[i]
 			} else {
-				handCards[i] = make([]mjp.CardID, len(g.gameData.HandCards[i]))
+				handCards[i] = make([]mp.CardID, len(g.gameData.HandCards[i]))
 				for index := range handCards[i] {
 					handCards[i][index] = 36 // 表示空牌
 				}
@@ -166,8 +170,21 @@ func (g *GameFrame) setTurn(chairID int, session *remote.Session) {
 		logs.Warn("玩家已经拿过牌了")
 		return
 	}
-	// 摸一张牌
-	card := g.logic.getCards(1)[0]
+	// 拿 test 牌
+	card := g.testCards[chairID]
+	if card > 0 && card < 36 {
+		// 从牌堆拿指定的牌
+		card = g.logic.getCard(card)
+		g.testCards[chairID] = 0
+	}
+	if card <= 0 || card >= 36 {
+		// 摸一张牌
+		cards := g.logic.getCards(1)
+		if cards == nil || len(cards) == 0 {
+			return
+		}
+		card = cards[0]
+	}
 	g.gameData.HandCards[chairID] = append(g.gameData.HandCards[chairID], card)
 	// 给所有玩家推送 这个玩家拿到了一张牌，当前用户是明牌，其他玩家看到暗牌
 	operateArray := g.getMyOperateArray(chairID, card, session)
@@ -197,11 +214,22 @@ func (g *GameFrame) sendRestCardsCount(session *remote.Session) {
 }
 
 // 用户当前可操作的行为：杠、碰、糊、弃牌等
-func (g *GameFrame) getMyOperateArray(chairID int, card mjp.CardID, session *remote.Session) []OperateType {
+func (g *GameFrame) getMyOperateArray(chairID int, card mp.CardID, session *remote.Session) []OperateType {
 	var operateArray = []OperateType{Qi}
 	if g.logic.canHu(g.gameData.HandCards[chairID], -1) {
 		operateArray = append(operateArray, HuZhi)
 	}
+	cardCount := 0
+	for _, c := range g.gameData.HandCards[chairID] {
+		if c == card {
+			cardCount++
+		}
+	}
+	if cardCount == 4 {
+		// 自摸杠
+		operateArray = append(operateArray, GangZhi)
+	}
+
 	return operateArray
 }
 
@@ -239,7 +267,7 @@ func (g *GameFrame) onGameTurnOperate(user *proto.RoomUser, session *remote.Sess
 			}
 		}
 		g.ServerMessagePush(g.r.GetAllUid(), GameTurnOperatePushData(user.ChairID, data.Card, data.Operate, true), session)
-		// 碰的牌加进来，相当于摸了一张牌 => 15 张，所以接着要打出一张
+		// 碰的牌加进来，相当于摸了一张牌 => 14 张，所以接着要打出一张
 		// 添加弃牌操作
 		g.gameData.OperateArrays[user.ChairID] = []OperateType{Qi}
 		// 碰相当于损失 两张牌。当用户重新加入房间时，会重新加载数据，碰掉的牌不能在手牌
@@ -262,7 +290,7 @@ func (g *GameFrame) onGameTurnOperate(user *proto.RoomUser, session *remote.Sess
 			}
 		}
 		g.ServerMessagePush(g.r.GetAllUid(), GameTurnOperatePushData(user.ChairID, data.Card, data.Operate, true), session)
-		// 碰的牌加进来，相当于摸了一张牌 => 15 张，所以接着要打出一张
+		// 碰的牌加进来，相当于摸了一张牌 => 14 张，所以接着要打出一张
 		// 添加弃牌操作
 		g.gameData.OperateArrays[user.ChairID] = []OperateType{Qi}
 		// 碰相当于损失 3 张牌。当用户重新加入房间时，会重新加载数据，碰掉的牌不能在手牌
@@ -306,15 +334,20 @@ func (g *GameFrame) onGameTurnOperate(user *proto.RoomUser, session *remote.Sess
 		// 1.当前用户的操作是否成功 告诉所有人
 		g.ServerMessagePush(g.r.GetAllUid(), GameTurnOperatePushData(user.ChairID, data.Card, data.Operate, true), session)
 		g.gameData.OperateRecord = append(g.gameData.OperateRecord, OperateRecord{ChairID: user.ChairID, Card: data.Card, Operate: data.Operate})
-		// 刚摸一张，处于 14 张牌，不需要再次弃牌
-		// 摸牌，继续操作
+		// 不需要再弃牌，摸牌，继续操作
+		g.setTurn(user.ChairID, session)
+	case Guo:
+		g.ServerMessagePush(g.r.GetAllUid(), GameTurnOperatePushData(user.ChairID, data.Card, data.Operate, true), session)
+		g.gameData.OperateRecord = append(g.gameData.OperateRecord, OperateRecord{ChairID: user.ChairID, Card: data.Card, Operate: data.Operate})
+		// todo 如果牌 14，先弃牌再做其他的
+		// 继续操作
 		g.setTurn(user.ChairID, session)
 	default:
 		logs.Warn("非法操作")
 	}
 }
 
-func (g *GameFrame) delCards(cards []mjp.CardID, card mjp.CardID, times int) []mjp.CardID {
+func (g *GameFrame) delCards(cards []mp.CardID, card mp.CardID, times int) []mp.CardID {
 	g.Lock()
 	defer g.Unlock()
 	for i, v := range cards {
@@ -326,7 +359,7 @@ func (g *GameFrame) delCards(cards []mjp.CardID, card mjp.CardID, times int) []m
 	return cards
 }
 
-func (g *GameFrame) nextTurn(lastCard mjp.CardID, session *remote.Session) {
+func (g *GameFrame) nextTurn(lastCard mp.CardID, session *remote.Session) {
 	// 在下一个用户摸牌之前，判断其他玩家在这个 card 上可以做的操作：胡、碰、杠...
 	hasOtherOp := false
 	if lastCard > 0 && lastCard < 36 {
@@ -398,4 +431,8 @@ func (g *GameFrame) resetGame(session *remote.Session) {
 	g.ServerMessagePush(g.r.GetAllUid(), GameStatusPushData(g.gameData.GameStatus, 0), session)
 	// 推送剩余牌数
 	g.ServerMessagePush(g.r.GetAllUid(), GameRestCardsCountPushData(g.logic.getRestCardsCount()), session)
+}
+
+func (g *GameFrame) onGameGetCard(user *proto.RoomUser, session *remote.Session, data MessageData) {
+	g.testCards[user.ChairID] = data.Card
 }

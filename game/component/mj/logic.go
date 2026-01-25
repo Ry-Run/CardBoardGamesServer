@@ -138,6 +138,15 @@ func (l *Logic) getRestCards() []mp.CardID {
 	return l.cards
 }
 
+func (l *Logic) getCard(card mp.CardID) mp.CardID {
+	index := alg.IndexOf(l.cards, card)
+	if index == -1 {
+		return 0
+	}
+	l.cards = append(l.cards[:index], l.cards[index+1:]...)
+	return card
+}
+
 func NewLogic(gameType GameType, qidui bool) *Logic {
 	return &Logic{
 		gameType: gameType,
