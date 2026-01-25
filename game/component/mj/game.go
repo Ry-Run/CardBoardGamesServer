@@ -16,21 +16,23 @@ import (
 
 type GameFrame struct {
 	sync.RWMutex
-	r          base.RoomFrame
-	gameRule   proto.GameRule
-	gameData   *GameData
-	logic      *Logic
-	gameResult *GameResult
-	testCards  []mp.CardID
+	r            base.RoomFrame
+	gameRule     proto.GameRule
+	gameData     *GameData
+	logic        *Logic
+	gameResult   *GameResult
+	testCards    []mp.CardID
+	turnSchedule map[int]*time.Timer
 }
 
 func NewGameFrame(rule proto.GameRule, room base.RoomFrame) *GameFrame {
 	return &GameFrame{
-		r:         room,
-		gameRule:  rule,
-		gameData:  initGameData(rule),
-		logic:     NewLogic(GameType(rule.GameFrameType), rule.Qidui),
-		testCards: make([]mp.CardID, rule.MaxPlayerCount),
+		r:            room,
+		gameRule:     rule,
+		gameData:     initGameData(rule),
+		logic:        NewLogic(GameType(rule.GameFrameType), rule.Qidui),
+		testCards:    make([]mp.CardID, rule.MaxPlayerCount),
+		turnSchedule: make(map[int]*time.Timer, rule.MaxPlayerCount),
 	}
 }
 
@@ -190,7 +192,7 @@ func (g *GameFrame) setTurn(chairID int, session *remote.Session) {
 	operateArray := g.getMyOperateArray(chairID, card, session)
 	for uid, user := range g.r.GetUsers() {
 		if user.ChairID == chairID {
-			g.ServerMessagePush([]string{uid}, GameTurnPushData(user.ChairID, card, OperateTime, operateArray), session)
+			g.gameTurn([]string{uid}, user.ChairID, card, operateArray, session)
 			// 确保玩家重连还有记录
 			g.gameData.OperateArrays[user.ChairID] = operateArray
 			g.gameData.OperateRecord = append(g.gameData.OperateRecord, OperateRecord{
@@ -198,13 +200,42 @@ func (g *GameFrame) setTurn(chairID int, session *remote.Session) {
 				Card:    card,
 				Operate: Get,
 			})
+			g.turnScheduleExec(chairID, card, operateArray, session)
 		} else {
 			// 暗牌
-			g.ServerMessagePush([]string{uid}, GameTurnPushData(user.ChairID, 36, OperateTime, operateArray), session)
+			g.gameTurn([]string{uid}, user.ChairID, 36, operateArray, session)
 		}
 	}
 	// 8.剩余牌数推送；
 	g.sendRestCardsCount(session)
+}
+
+func (g *GameFrame) gameTurn(uids []string, chairID int, card mp.CardID, operateArray []OperateType, session *remote.Session) {
+	g.gameData.Tick = OperateTime
+	if uids == nil {
+		g.ServerMessagePush(g.r.GetAllUid(), GameTurnPushData(chairID, card, g.gameData.Tick, operateArray), session)
+	} else {
+		g.ServerMessagePush(uids, GameTurnPushData(chairID, card, g.gameData.Tick, operateArray), session)
+	}
+}
+
+func (g *GameFrame) turnScheduleExec(chairID int, card mp.CardID, operateArray []OperateType, session *remote.Session) {
+	if g.turnSchedule[chairID] != nil {
+		g.turnSchedule[chairID].Stop()
+	}
+	// 触发定时
+	g.turnSchedule[chairID] = time.AfterFunc(time.Second, func() {
+		if g.gameData.Tick <= 0 {
+			// 取消定时
+			if g.turnSchedule[chairID] != nil {
+				g.turnSchedule[chairID].Stop()
+			}
+			g.userAutoOperate(chairID, card, operateArray, session)
+		} else {
+			g.gameData.Tick--
+			g.turnSchedule[chairID].Reset(time.Second)
+		}
+	})
 }
 
 // 剩余牌数推送
@@ -244,6 +275,9 @@ func (g *GameFrame) onGameChat(user *proto.RoomUser, session *remote.Session, da
 }
 
 func (g *GameFrame) onGameTurnOperate(user *proto.RoomUser, session *remote.Session, data MessageData) {
+	if g.turnSchedule[user.ChairID] != nil {
+		g.turnSchedule[user.ChairID].Stop()
+	}
 	switch data.Operate {
 	case Qi:
 		// 1.向所有人推送 当前用户的操作
@@ -493,4 +527,19 @@ func (g *GameFrame) resetGame(session *remote.Session) {
 
 func (g *GameFrame) onGameGetCard(user *proto.RoomUser, session *remote.Session, data MessageData) {
 	g.testCards[user.ChairID] = data.Card
+}
+
+func (g *GameFrame) userAutoOperate(chairID int, card mp.CardID, operateArray []OperateType, session *remote.Session) {
+	user := g.r.GetUsers()[session.GetUid()]
+	data := MessageData{
+		ChairID: chairID,
+		Card:    card,
+	}
+	if IndexOf(operateArray, Qi) != -1 {
+		// 操作弃牌
+		data.Operate = Qi
+	} else if IndexOf(operateArray, Guo) != -1 {
+		data.Operate = Guo
+	}
+	g.onGameTurnOperate(user, session, data)
 }

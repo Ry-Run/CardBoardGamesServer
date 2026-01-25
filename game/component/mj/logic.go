@@ -147,6 +147,15 @@ func (l *Logic) getCard(card mp.CardID) mp.CardID {
 	return card
 }
 
+func IndexOf[T OperateType](list []T, v T) int {
+	for i, val := range list {
+		if val == v {
+			return i
+		}
+	}
+	return -1
+}
+
 func NewLogic(gameType GameType, qidui bool) *Logic {
 	return &Logic{
 		gameType: gameType,
