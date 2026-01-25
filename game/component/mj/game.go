@@ -331,8 +331,19 @@ func (g *GameFrame) onGameTurnOperate(user *proto.RoomUser, session *remote.Sess
 		g.gameEnd(session)
 	case GangZhi:
 		// 自摸杠
-		// 1.当前用户的操作是否成功 告诉所有人
-		g.ServerMessagePush(g.r.GetAllUid(), GameTurnOperatePushData(user.ChairID, data.Card, data.Operate, true), session)
+		// 1.当前用户的操作是否成功 告诉所有人， 前端传的 data.Card 会是一个 nil，相当于暗杠
+		// 获取 card
+		data.Card = g.gameData.HandCards[user.ChairID][len(g.gameData.HandCards[user.ChairID])-1]
+		// 推送玩家的操作，其他用户不知道暗杠的什么牌，只有当前用户能看到自己的自摸杠
+		for uid, _ := range g.r.GetUsers() {
+			if uid == user.UserInfo.Uid {
+				g.ServerMessagePush([]string{uid}, GameTurnOperatePushData(user.ChairID, data.Card, data.Operate, true), session)
+			} else {
+				// card = 0
+				g.ServerMessagePush([]string{uid}, GameTurnOperatePushData(user.ChairID, 0, data.Operate, true), session)
+			}
+		}
+		g.gameData.HandCards[user.ChairID] = g.delCards(g.gameData.HandCards[user.ChairID], data.Card, 4)
 		g.gameData.OperateRecord = append(g.gameData.OperateRecord, OperateRecord{ChairID: user.ChairID, Card: data.Card, Operate: data.Operate})
 		// 不需要再弃牌，摸牌，继续操作
 		g.setTurn(user.ChairID, session)
@@ -350,13 +361,16 @@ func (g *GameFrame) onGameTurnOperate(user *proto.RoomUser, session *remote.Sess
 func (g *GameFrame) delCards(cards []mp.CardID, card mp.CardID, times int) []mp.CardID {
 	g.Lock()
 	defer g.Unlock()
-	for i, v := range cards {
+	newCards := make([]mp.CardID, 0)
+	for _, v := range cards {
 		if v == card && times > 0 {
-			cards = append(cards[:i], cards[i+1:]...)
+			// 删除一次
 			times--
+			continue
 		}
+		newCards = append(newCards, v) // 保留
 	}
-	return cards
+	return newCards
 }
 
 func (g *GameFrame) nextTurn(lastCard mp.CardID, session *remote.Session) {
