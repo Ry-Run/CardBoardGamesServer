@@ -30,18 +30,18 @@ type GameData struct {
 	OperateArrays  [][]OperateType `json:"operateArrays"`  //操作
 	OperateRecord  []OperateRecord `json:"operateRecord"`  //操作记录
 	RestCardsCount int             `json:"restCardsCount"` //剩余牌数
-	Result         GameResult      `json:"result"`         //结算
+	Result         *GameResult     `json:"result"`         //结算
 }
 
 type GameResult struct {
-	Scores          []int       `json:"scores"`
-	HandCards       [][]int     `json:"handCards"`
-	MyMaCards       []MyMaCard  `json:"myMaCards"`
-	RestCards       []int       `json:"restCards"`
-	WinChairIDArray []int       `json:"winChairIDArray"`
-	GangChairID     int         `json:"gangChairID"`
-	FangGangArray   []int       `json:"fangGangArray"`
-	HuType          OperateType `json:"huType"`
+	Scores          []int         `json:"scores"`
+	HandCards       [][]mp.CardID `json:"handCards"`
+	MyMaCards       []MyMaCard    `json:"myMaCards"`
+	RestCards       []mp.CardID   `json:"restCards"`
+	WinChairIDArray []int         `json:"winChairIDArray"`
+	GangChairID     int           `json:"gangChairID"`
+	FangGangArray   []int         `json:"fangGangArray"`
+	HuType          OperateType   `json:"huType"`
 }
 type MyMaCard struct {
 	Card int  `json:"card"`
@@ -226,6 +226,16 @@ func GameTurnOperatePushData(chairID int, card mp.CardID, operate OperateType, s
 			"card":    card,
 			"operate": operate,
 			"success": success,
+		},
+		"pushRouter": "GameMessagePush",
+	}
+}
+
+func GameResultPushData(result GameResult) any {
+	return map[string]any{
+		"type": GameResultPush,
+		"data": map[string]any{
+			"result": result,
 		},
 		"pushRouter": "GameMessagePush",
 	}

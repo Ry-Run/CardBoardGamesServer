@@ -134,6 +134,10 @@ func (l *Logic) getOperateArray(cards []mp.CardID, card mp.CardID) []OperateType
 	return operateArray
 }
 
+func (l *Logic) getRestCards() []mp.CardID {
+	return l.cards
+}
+
 func NewLogic(gameType GameType, qidui bool) *Logic {
 	return &Logic{
 		gameType: gameType,
