@@ -112,3 +112,22 @@ func OtherUserEntryRoomPushData(user *RoomUser) any {
 	}
 	return pushMsg
 }
+
+type DismissPushData struct {
+	NameArr    []string `json:"nameArr"`
+	ChairIDArr []any    `json:"chairIDArr"` // 如果对方是第一次弹出解散框 any == nil
+	AvatarArr  []string `json:"avatarArr"`
+	OnlineArr  []bool   `json:"onlineArr"`
+	AskChairId int      `json:"askChairId"`
+	Tm         int      `json:"tm"` // 倒计时
+	ScoreArr   []int    `json:"scoreArr"`
+}
+
+func AskForDismissPushData(data *DismissPushData) any {
+	pushMsg := map[string]any{
+		"type":       AskForDismissPush,
+		"pushRouter": "RoomMessagePush",
+		"data":       data,
+	}
+	return pushMsg
+}

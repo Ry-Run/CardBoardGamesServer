@@ -27,6 +27,7 @@ type Room struct {
 	union         base.UnionBase
 	dismissed     bool
 	gameStarted   bool
+	askDismiss    map[int]struct{}
 }
 
 // 1.推送房间号到客户端；2.推送游戏类型给客户端（进入游戏也要推送一次）；3.通知其他用户，此用户加入房间
@@ -80,6 +81,8 @@ func (r *Room) RoomMessageHandler(session *remote.Session, req request.RoomMessa
 		r.GetRoomSceneInfoPush(session)
 	case proto.UserReadyNotify:
 		r.userReady(session.GetUid(), session)
+	case proto.AskForDismissNotify:
+		r.askForDismiss(session, req.Data.IsExit)
 	}
 }
 
@@ -151,8 +154,10 @@ func (r *Room) kickUser(user *proto.RoomUser, session *remote.Session) {
 
 // 解散房间，将 union 存储的房间信息，删除掉
 func (r *Room) dismissRoom() {
-	r.Lock()
-	defer r.Unlock()
+	if r.TryLock() {
+		r.Lock()
+		defer r.Unlock()
+	}
 	// 避免重复解散
 	if r.dismissed {
 		return
@@ -297,6 +302,79 @@ func (r *Room) UserReady(uid string, session *remote.Session) {
 
 func (r *Room) GetId() string {
 	return r.Id
+}
+
+func (r *Room) askForDismiss(session *remote.Session, exist bool) {
+	r.Lock()
+	defer r.Unlock()
+	// 所有同意解散的玩家数
+	user := r.users[session.GetUid()]
+	if exist {
+		// 同意解散
+		if r.askDismiss == nil {
+			r.askDismiss = make(map[int]struct{})
+		}
+		r.askDismiss[user.ChairID] = struct{}{}
+
+		nameArr := make([]string, len(r.users))
+		chairIDArr := make([]any, len(r.users))
+		avatarArr := make([]string, len(r.users))
+		onlineArr := make([]bool, len(r.users))
+		for _, roomUser := range r.users {
+			nameArr[roomUser.ChairID] = roomUser.UserInfo.Nickname
+			avatarArr[roomUser.ChairID] = roomUser.UserInfo.Avatar
+			_, ok := r.askDismiss[roomUser.ChairID]
+			if ok {
+				chairIDArr[roomUser.ChairID] = true
+			}
+			onlineArr[roomUser.ChairID] = true
+		}
+
+		data := proto.DismissPushData{
+			NameArr:    nameArr,
+			ChairIDArr: chairIDArr,
+			AvatarArr:  avatarArr,
+			OnlineArr:  onlineArr,
+			AskChairId: user.ChairID,
+			Tm:         30,
+		}
+		r.ServerMessagePush(r.GetAllUid(), proto.AskForDismissPushData(&data), session)
+		// 所有人都同意
+		if len(r.askDismiss) == len(r.users) {
+			// 解散房间
+			for _, roomUser := range r.users {
+				r.kickUser(roomUser, session)
+			}
+			if len(r.users) == 0 {
+				r.dismissRoom()
+			}
+		}
+	} else {
+		// 不同意解散
+		nameArr := make([]string, len(r.users))
+		chairIDArr := make([]any, len(r.users))
+		avatarArr := make([]string, len(r.users))
+		onlineArr := make([]bool, len(r.users))
+		for _, roomUser := range r.users {
+			nameArr[roomUser.ChairID] = roomUser.UserInfo.Nickname
+			avatarArr[roomUser.ChairID] = roomUser.UserInfo.Avatar
+			_, ok := r.askDismiss[roomUser.ChairID]
+			if ok {
+				chairIDArr[roomUser.ChairID] = true
+			}
+			onlineArr[roomUser.ChairID] = true
+		}
+
+		data := proto.DismissPushData{
+			NameArr:    nameArr,
+			ChairIDArr: chairIDArr,
+			AvatarArr:  avatarArr,
+			OnlineArr:  onlineArr,
+			AskChairId: user.ChairID,
+			Tm:         30,
+		}
+		r.ServerMessagePush(r.GetAllUid(), proto.AskForDismissPushData(&data), session)
+	}
 }
 
 func NewRoom(id string, unionID int64, rule proto.GameRule, u base.UnionBase) *Room {
