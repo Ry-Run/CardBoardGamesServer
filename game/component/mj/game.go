@@ -229,6 +229,12 @@ func (g *GameFrame) getMyOperateArray(chairID int, card mp.CardID, session *remo
 		// 自摸杠
 		operateArray = append(operateArray, GangZhi)
 	}
+	// 已经碰了，然后又摸到一张，就可以补杠
+	for _, record := range g.gameData.OperateRecord {
+		if record.ChairID == chairID && record.Operate == Peng && record.Card == card {
+			operateArray = append(operateArray, GangBu)
+		}
+	}
 
 	return operateArray
 }
@@ -353,6 +359,38 @@ func (g *GameFrame) onGameTurnOperate(user *proto.RoomUser, session *remote.Sess
 		// todo 如果牌 14，先弃牌再做其他的
 		// 继续操作
 		g.setTurn(user.ChairID, session)
+	case GangBu:
+		// 1.自摸补杠
+		if user.ChairID == g.gameData.CurChairID {
+			card := g.gameData.HandCards[user.ChairID][len(g.gameData.HandCards[user.ChairID])-1]
+			for uid, _ := range g.r.GetUsers() {
+				if uid == user.UserInfo.Uid {
+					g.ServerMessagePush([]string{uid}, GameTurnOperatePushData(user.ChairID, card, data.Operate, true), session)
+				} else {
+					// card = 0
+					g.ServerMessagePush([]string{uid}, GameTurnOperatePushData(user.ChairID, data.Card, data.Operate, true), session)
+				}
+			}
+			g.gameData.HandCards[user.ChairID] = g.delCards(g.gameData.HandCards[user.ChairID], card, 1)
+			g.gameData.OperateRecord = append(g.gameData.OperateRecord, OperateRecord{ChairID: user.ChairID, Card: card, Operate: data.Operate})
+			// 继续操作
+			g.setTurn(user.ChairID, session)
+		} else {
+			// 2.吃牌补杠
+			if data.Card == 0 {
+				length := len(g.gameData.OperateRecord)
+				if length == 0 {
+					// 没记录，出错
+					logs.Error("用户杠操作，但是没有上一个用户操作")
+				} else {
+					data.Card = g.gameData.OperateRecord[length-1].Card
+				}
+			}
+			g.ServerMessagePush(g.r.GetAllUid(), GameTurnOperatePushData(user.ChairID, data.Card, data.Operate, true), session)
+			g.gameData.OperateRecord = append(g.gameData.OperateRecord, OperateRecord{ChairID: user.ChairID, Card: data.Card, Operate: data.Operate})
+			// 继续操作
+			g.setTurn(user.ChairID, session)
+		}
 	default:
 		logs.Warn("非法操作")
 	}
@@ -383,6 +421,12 @@ func (g *GameFrame) nextTurn(lastCard mp.CardID, session *remote.Session) {
 				continue
 			}
 			operateArray := g.logic.getOperateArray(g.gameData.HandCards[i], lastCard)
+			// 已经碰了，然后当前出牌的玩家又打出一张牌，就可以补杠
+			for _, record := range g.gameData.OperateRecord {
+				if record.ChairID == i && record.Operate == Peng && record.Card == lastCard {
+					operateArray = append(operateArray, GangBu)
+				}
+			}
 			if len(operateArray) > 0 {
 				// 用户可以做一些操作
 				hasOtherOp = true
